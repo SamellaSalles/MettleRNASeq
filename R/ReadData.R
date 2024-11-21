@@ -22,7 +22,7 @@
 ReadData <- function (counts, col_data, design, norm="scale", min_counts=0)
 {
 	if (!is.matrix(counts)) stop ("The count table must be a matrix type. Please, convert to matrix.")
-	if (!is.data.frame(col_data)) stop ("The design must be a data.frame which must contain at leat 2 colunm")
+	if (!is.data.frame(col_data)) stop ("The design must be a data.frame which must contain at leat 2 colunms")
 	if (!all(col_data[,1] %in% colnames(counts))) stop ("ERROR between count matrix and the first colunm in the experimental design")
 
 	cdat <- counts[,col_data[,1]]
