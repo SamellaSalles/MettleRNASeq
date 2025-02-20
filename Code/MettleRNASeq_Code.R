@@ -3,10 +3,16 @@ library(plotly)
 library(ggplot2)
 library(DESeq2)
 library(edgeR)
+library(plyr)
+library(tidyverse)
 library(dplyr)
+library(janitor)
+library(tidyr)
 library(corrplot)
 library(pheatmap) 
 library(RColorBrewer)
+library(factoextra)
+library(stringr)
 library(caret)
 library("rsample")
 library(doParallel)  # Load doParallel package
@@ -16,12 +22,84 @@ library(arules)
 library(arulesViz)
 
 #With the count matrix obtained after HTSeq Counts:
+#Already in the .RDATA (count_matrix_B) -> Create a single dataframe with the count matrices!!!!! ------------
+#------- #Criando uma lista dos meus dados para trocar nomes das colunas
+#A coluna vai alterar de acordo com o nome do dataframe
+
+# Function to rename columns in a data frame based on file name
+rename_columns <- function(df, file_name) {
+  # Generate new column names
+  new_names <- c("Gene", paste0(file_name))
+  # Rename columns
+  names(df) <- new_names
+  return(df)
+}
+
+# List of data frames
+list_of_dfs <- list(F1B.merge, F2B.merge, F3B.merge, F4B.merge,
+                    S1B.merge, S2B.merge, S3B.merge, S4B.merge,
+                    U1B.merge, U2B.merge, U3B.merge, U4B.merge
+                    #,F1S.merge, F2S.merge, F3S.merge, F4S.merge,
+                    #S1S.merge, S2S.merge, S3S.merge, S4S.merge,
+                    #U1S.merge, U2S.merge, U3S.merge, U4S.merge
+                    )
+
+# List of file names corresponding to each data frame
+file_names <- c("F1B", "F2B", "F3B", "F4B",
+                "S1B", "S2B", "S3B", "S4B",
+                "U1B", "U2B", "U3B", "U4B"
+                #,"F1S", "F2S", "F3S", "F4S",
+               # "S1S", "S2S", "S3S", "S4S",
+                #"U1S", "U2S", "U3S", "U4S"
+               )
+
+# Apply renaming function to each data frame in the list
+for (i in seq_along(list_of_dfs)) {
+  list_of_dfs[[i]] <- rename_columns(list_of_dfs[[i]], file_names[i])
+}
+
+# Accessing the first data frame to check the changes
+print(head(list_of_dfs[[1]]))
+
+
+
+----- #Juntar dataframes em 1 só
+listdf <- list_of_dfs
+listdf <- join_all(listdf, by = "Gene", type = "full", match = "all")
+#There is no NA in the dataframe:
+#sum(is.na(listdf))
+
+-------- #Preparar data frame
+count_matrix_B <- listdf
+count_matrix_B <- t(listdf)
+count_matrix_B <- count_matrix_B %>%
+  row_to_names(1, remove_row = TRUE, remove_rows_above = TRUE) 
+count_matrix_B <- count_matrix_B[, -c((ncol(count_matrix_B) - 4):ncol(count_matrix_B))]
+
+# Convert "count_matrix_B" to a dataframe if it's not already
+if (!is.data.frame(count_matrix_B)) {
+  count_matrix_B <- as.data.frame(count_matrix_B)
+}
+# Convert character columns to numeric
+for (col in names(count_matrix_B)) {
+  count_matrix_B[, col] <- as.numeric(count_matrix_B[, col], na.rm = TRUE)
+}
+#count_matrix_B <-  sapply(count_matrix_B, as.numeric)
+#return the datatype of each column
+#head(print(sapply(count_matrix_B, class)))
+#There is no NA in the dataframe:
+#sum(is.na(count_matrix_B))
+
+#Remover colunas sem vari?ncia nos valores entre os genes
+#cols_to_keep <- sapply(count_matrix_B, function(x) var(x) != 0)
+#count_matrix_B <- count_matrix_B[, cols_to_keep]
+#PRONTO!
 
 # ---------Normalize the data first (columns GENE): ----------------
   #DESeq2 with TMM normalization from edgeR
 
 samples_B4 <- c("F1B", "F2B", "F3B", "F4B", "S1B", "S2B", "S3B", "S4B", "U1B", "U2B", "U3B", "U4B")
-samples_S4 <- c("F1S", "F2S", "F3S", "F4S", "S1S", "S2S", "S3S", "S4S", "U1S", "U2S", "U3S", "U4S")
+#samples_S4 <- c("F1S", "F2S", "F3S", "F4S", "S1S", "S2S", "S3S", "S4S", "U1S", "U2S", "U3S", "U4S")
 
 # Define a function to extract condition and tissue
 condition_map <- c(F = "FLASH", S = "Standard", U = "Untreated")
@@ -31,24 +109,24 @@ extract_condition <- function(sample_name) {
   return(paste(condition, sep = ""))
 }
 condition_B4 <- sapply(samples_B4, extract_condition)
-condition_S4 <- sapply(samples_S4, extract_condition)
+#condition_S4 <- sapply(samples_S4, extract_condition)
 
-directory <- "C:/Users/samel/OneDrive/Trabalho Pesquisa/Pesquisa Cancer HPC - Mestrado/FLASH Radiotherapy/Dados Paired-Read/expression_data/input"
+directory <- "C:/Users/samel/OneDrive/Trabalho Pesquisa/Pesquisa Cancer HPC - Mestrado/Artigos/Paper Small Data Oxford BioInf/Code/input"
 samplesFiles_B4 <- c("F1B.merge.fastq", "F2B.merge.fastq", "F3B.merge.fastq", "F4B.merge.fastq", "S1B.merge.fastq", "S2B.merge.fastq", "S3B.merge.fastq", "S4B.merge.fastq", "U1B.merge.fastq", "U2B.merge.fastq", "U3B.merge.fastq", "U4B.merge.fastq")
-samplesFiles_S4 <- c("F1S.merge.fastq", "F2S.merge.fastq", "F3S.merge.fastq", "F4S.merge.fastq", "S1S.merge.fastq", "S2S.merge.fastq", "S3S.merge.fastq", "S4S.merge.fastq", "U1S.merge.fastq", "U2S.merge.fastq", "U3S.merge.fastq", "U4S.merge.fastq")
+#samplesFiles_S4 <- c("F1S.merge.fastq", "F2S.merge.fastq", "F3S.merge.fastq", "F4S.merge.fastq", "S1S.merge.fastq", "S2S.merge.fastq", "S3S.merge.fastq", "S4S.merge.fastq", "U1S.merge.fastq", "U2S.merge.fastq", "U3S.merge.fastq", "U4S.merge.fastq")
 
 sampleTable_B4 <- data.frame(row.names = NULL, sampleName = samples_B4, fileName = samplesFiles_B4, condition = condition_B4, stringsAsFactors = FALSE) # tissue = tissue
-sampleTable_S4 <- data.frame(row.names = NULL, sampleName = samples_S4, fileName = samplesFiles_S4, condition = condition_S4, stringsAsFactors = FALSE) # tissue = tissue
+#sampleTable_S4 <- data.frame(row.names = NULL, sampleName = samples_S4, fileName = samplesFiles_S4, condition = condition_S4, stringsAsFactors = FALSE) # tissue = tissue
 
 ddsHTSeq_B4 <- DESeqDataSetFromHTSeqCount(sampleTable = sampleTable_B4,
                                           directory = directory,
                                           design= ~ condition) #group
 ddsHTSeq_B4
 
-ddsHTSeq_S4 <- DESeqDataSetFromHTSeqCount(sampleTable = sampleTable_S4,
-                                          directory = directory,
-                                          design= ~ condition) #group
-ddsHTSeq_S4
+#ddsHTSeq_S4 <- DESeqDataSetFromHTSeqCount(sampleTable = sampleTable_S4,
+ #                                         directory = directory,
+  #                                        design= ~ condition) #group
+#ddsHTSeq_S4
 
 #Removing very low counts
 smallestGroupSize <- 4 #Ideally the number of smallest samples you have for this condition/group
@@ -57,14 +135,14 @@ ddsHTSeq_B4 <- ddsHTSeq_B4[keep,]
 
 ddsHTSeq_B4
 
-smallestGroupSize <- 4
-keep <- rowSums(counts(ddsHTSeq_S4) >= 10) >= smallestGroupSize
-ddsHTSeq_S4 <- ddsHTSeq_S4[keep,]
-
-ddsHTSeq_S4
+# smallestGroupSize <- 4
+# keep <- rowSums(counts(ddsHTSeq_S4) >= 10) >= smallestGroupSize
+# ddsHTSeq_S4 <- ddsHTSeq_S4[keep,]
+# 
+# ddsHTSeq_S4
 
 #B4 (with all samples from BONE)
-tmm_data_B4 <- df_PCA %>% filter(!row_number() %in% 13:24) 
+tmm_data_B4 <- count_matrix_B %>% filter(!row_number() %in% 13:24) 
 #Convert to numeric without losing rownames:
 tmm_data_B4 <- data.frame(lapply(tmm_data_B4, function(x) as.numeric(as.character(x))),
                           check.names=F, row.names = rownames(tmm_data_B4))
@@ -95,22 +173,29 @@ res_B4_FxU <- results(ddsHTSeq_B4, contrast = c("condition", "FLASH", "Untreated
 res_B4_SxF <- results(ddsHTSeq_B4, contrast = c("condition", "Standard", "FLASH"), alpha = 0.05)#, alpha = 0.01
 
 
-#Getting the counts of the data that are already normalized:
+#Getting the counts of the data that are already normalized (3 Conditions (3C)):
 #Rows are GENES!
-norm_B4_counts <- counts(ddsHTSeq_B4, normalized=TRUE)
+norm_B4_counts_3C <- counts(ddsHTSeq_B4, normalized=TRUE)
 
 #Now rows are SAMPLES!
-trans_norm_B4_counts <- t(norm_B4_counts)
+trans_norm_B4_counts_3C <- t(norm_B4_counts_3C)
+
+#Same data but with just FLASH and STANDARD (2 Conditions (2C)):
+norm_B4_counts <- norm_B4_counts_3C[1:8,]
+trans_norm_B4_counts <- trans_norm_B4_counts_3C[1:8,]
+
 
 #------------Similaridade entre amostras e condições--------------
 #dist mostra distancia entre pares de LINHAS (rows)!
-sim_B4 <- dist(trans_norm_B4_counts,method="euclidean")
+sim_B4 <- dist(trans_norm_B4_counts_3C,method="euclidean")
 sim_B4 <- as.data.frame(as.matrix(sim_B4))
 #COrrelação feita nas colunas, que aqui serão amostras!
 #spearman_sim_B4 <- as.dist(1-cor(norm_B4_counts, method = "spearman"))
 #spearman_sim_B4 <- as.data.frame(as.matrix(spearman_sim_B4))
 
-colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+num_breaks <- 5
+colors <- colorRampPalette(c("#05287A", "#DCEEF0"))(num_breaks)
+
 pheatmap(sim_B4,
          cluster_rows = TRUE,
          cluster_cols = TRUE,
@@ -119,18 +204,59 @@ pheatmap(sim_B4,
          breaks = seq(0, 500000, length.out = num_breaks))
 
 #---------Correlação entre colunas (amostras) - Pode ser pesado computacionalmente!----------------
-cor_B4 <- cor(norm_B4_counts)
-cor_S4 <- cor(norm_S4_counts)
+cor_B4 <- cor(norm_B4_counts_3C)
 
 corrplot(cor_B4, method = "color", type = "lower", tl.cex = 0.5, tl.col="black",  number.cex = 0.5) #To add the numbers inside: addCoef.col = "black", #To add which values have significance: p.mat = cor_test_B4$p, sig.level = 0.05,
-corrplot(cor_S4, method = "color", type = "lower", tl.cex = 0.5, tl.col="black",  number.cex = 0.5) #To add the numbers inside: addCoef.col = "black", #To add which values have significance: p.mat = cor_test_B4$p, sig.level = 0.05,
 
 
-#-------------PCA to investigate the data:---------
-pca_norm_B4 <- prcomp(norm_B4_counts, center = TRUE, scale = FALSE) # center = TRUE ,scale = FALSE
+#-------------PCA to investigate the data (3 conditions (3C)):---------
+pca_norm_B4_3C <- prcomp(trans_norm_B4_counts_3C, center = TRUE, scale = FALSE) # center = TRUE ,scale = FALSE
+summary(pca_norm_B4_3C)
+eig.val_norm_B4_3C <- get_eigenvalue(pca_norm_B4_3C)
+eig.val_norm_B4_3C
+#Investigate the cos2:
+#Colored by cos2, meaning how much that sample is being well represented by the PCA
+#Mais longe do centro, melhor representada é a amostra! Mais perto do centro, menos representada!
+
+fviz_pca_ind(pca_norm_B4_3C,
+             col.ind = "cos2", # Color by the quality of representation
+             gradient.cols = c("#00AFBB", "#510000", "#FC4E07"),
+             repel = TRUE     # Avoid text overlapping
+)
+
+#Correlation of how well the samples are being represented for each PCA
+res.ind_norm_B4_3C <- get_pca_ind(pca_norm_B4_3C)
+corrplot(res.ind_norm_B4_3C$cos2, is.corr=FALSE)
+
+#PCA Plot
+pca.data_norm_B4_3C <- data.frame(Sample=rownames(pca_norm_B4_3C$x),
+                               X=pca_norm_B4_3C$x[,1],
+                               Y=pca_norm_B4_3C$x[,2],
+                               Condition=c("FLASH", "FLASH","FLASH","FLASH","STANDARD","STANDARD","STANDARD","STANDARD","UNTREATED","UNTREATED","UNTREATED","UNTREATED"))
+pca.var_norm_B4_3C <- pca_norm_B4_3C$sdev^2
+pca.var.per_norm_B4_3C <- round(pca.var_norm_B4_3C/sum(pca.var_norm_B4_3C)*100, 1)
+ggplot(data=pca.data_norm_B4_3C, aes(x=X, y=Y, colour=Condition)) + #label=Sample,
+  geom_point(size = 3) +
+  xlab(paste("PC1 - ", pca.var.per_norm_B4_3C[1], "%", sep="")) +
+  ylab(paste("PC2 - ", pca.var.per_norm_B4_3C[2], "%", sep="")) +
+  # scale_x_continuous(limits = c(4, 8), breaks = seq(4, 8, by = 1)) +
+  #scale_y_continuous(limits = c(2, 7), breaks = seq(2, 7, by = 1)) +
+  scale_color_manual(values = c("#0073e6", "#f57600", "#5ba300")) +
+  scale_y_continuous(limits = c(-200000, 100000), breaks = seq(-200000, 100000, 100000)) +
+  scale_x_continuous(limits = c(-200000, 300000), breaks = seq(-200000, 300000, 100000)) +
+  theme_bw()
+
+
+#----------#3D PCA Plots
+
+pca_plotly_B4_3C <- plot_ly(as.data.frame(pca_norm_B4_3C$x), x = ~PC1, y = ~PC2, z = ~PC3, color = ~sampleTable_B4$condition) %>% add_markers()
+pca_plotly_B4_3C
+
+#------After elimination of UNTREATED condition, NEW PCAs are done for feature selection: ---------
+pca_norm_B4 <- prcomp(trans_norm_B4_counts, center = TRUE, scale = FALSE) # center = TRUE ,scale = FALSE
 summary(pca_norm_B4)
 eig.val_norm_B4 <- get_eigenvalue(pca_norm_B4)
-
+eig.val_norm_B4
 #Investigate the cos2:
 #Colored by cos2, meaning how much that sample is being well represented by the PCA
 #Mais longe do centro, melhor representada é a amostra! Mais perto do centro, menos representada!
@@ -142,34 +268,34 @@ fviz_pca_ind(pca_norm_B4,
 )
 
 #Correlation of how well the samples are being represented for each PCA
+res.ind_norm_B4 <- get_pca_ind(pca_norm_B4)
 corrplot(res.ind_norm_B4$cos2, is.corr=FALSE)
 
 #PCA Plot
 pca.data_norm_B4 <- data.frame(Sample=rownames(pca_norm_B4$x),
-                               X=pca_norm_B4$x[,1],
-                               Y=pca_norm_B4$x[,2],
-                               Condition=c("FLASH", "FLASH","FLASH","FLASH","STANDARD","STANDARD","STANDARD","STANDARD","UNTREATED","UNTREATED","UNTREATED","UNTREATED"))
+                                  X=pca_norm_B4$x[,1],
+                                  Y=pca_norm_B4$x[,2],
+                                  Condition=c("FLASH", "FLASH","FLASH","FLASH","STANDARD","STANDARD","STANDARD","STANDARD"))
 pca.var_norm_B4 <- pca_norm_B4$sdev^2
 pca.var.per_norm_B4 <- round(pca.var_norm_B4/sum(pca.var_norm_B4)*100, 1)
 ggplot(data=pca.data_norm_B4, aes(x=X, y=Y, colour=Condition)) + #label=Sample,
   geom_point(size = 3) +
   xlab(paste("PC1 - ", pca.var.per_norm_B4[1], "%", sep="")) +
   ylab(paste("PC2 - ", pca.var.per_norm_B4[2], "%", sep="")) +
-  # scale_x_continuous(limits = c(4, 8), breaks = seq(4, 8, by = 1)) +
-  #scale_y_continuous(limits = c(2, 7), breaks = seq(2, 7, by = 1)) +
   scale_color_manual(values = c("#0073e6", "#f57600", "#5ba300")) +
-  scale_y_continuous(limits = c(-200000, 100000), breaks = seq(-200000, 100000, 100000)) +
-  scale_x_continuous(limits = c(-200000, 300000), breaks = seq(-200000, 300000, 100000)) +
+  #scale_y_continuous(limits = c(-200000, 100000), breaks = seq(-200000, 100000, 100000)) +
+  #scale_x_continuous(limits = c(-200000, 300000), breaks = seq(-200000, 300000, 100000)) +
   theme_bw()
 
 
-#----------#3D PCA Plots ----------------
-
-pca_plotly_B4 <- plot_ly(as.data.frame(pca_norm_B4$x), x = ~PC1, y = ~PC2, z = ~PC3, color = ~sampleTable_B4$condition) %>% add_markers()
+#----------#3D PCA Plots
+sampleTable_B4_2C <- sampleTable_B4[1:8,]
+pca_plotly_B4 <- plot_ly(as.data.frame(pca_norm_B4$x), x = ~PC1, y = ~PC2, z = ~PC3, color = ~sampleTable_B4_2C$condition) %>% add_markers()
 pca_plotly_B4
 
-#--------------- Input refinement: Top genes for each PC in PCA BONE 4 ------------------
-## get the name of the top 10 measurements (genes) that contribute
+
+#--------------- Input refinement (feature selection): Top genes for each PC in PCA BONE 4 ------------------
+## get the name of the top 100 measurements (genes) that contribute
 ## most to pc1.
 loading_scores_B4 <- pca_norm_B4$rotation[,1]
 gene_scores_B4 <- abs(loading_scores_B4) ## get the magnitudes
@@ -211,7 +337,7 @@ pca_norm_B4$rotation[top_100_genes_PC4_B4,4] ## show the scores (and +/- sign)
 top_genes_B4 <- c(top_100_genes_PC1_B4,top_100_genes_PC2_B4,top_100_genes_PC3_B4,top_100_genes_PC4_B4)
 top_genes_B4 <- unique(top_genes_B4)
 
-top_genes_B4 <- norm_B4_counts[,top_genes_B4]
+top_genes_B4 <- trans_norm_B4_counts[,top_genes_B4]
 
 #--------Classification------------
 ML_B4 <- as.data.frame(top_genes_B4) #or norm_B4_counts or raw_B4
@@ -221,12 +347,12 @@ ML_B4_S <- ML_B4 %>% filter(!row_number() %in% 1:4) # %>% filter(!row_number() %
 
 ML_B4_F <- t(ML_B4_F) 
 ML_B4_F <- as.data.frame(ML_B4_F)
-names_F <- c( B1 = "F1B", B2 = "F2B", B3 = "F3B", B4 = "F4B")
+names_F <- c( "B1" = "F1B", "B2" = "F2B", "B3" = "F3B", "B4" = "F4B")
 ML_B4_F <- rename(ML_B4_F, all_of(names_F))
 
 ML_B4_S <- t(ML_B4_S) 
 ML_B4_S <- as.data.frame(ML_B4_S)
-names_S <- c( B1 = "S1B", B2 = "S2B", B3 = "S3B", B4 = "S4B")
+names_S <-  c( "B1" = "S1B", "B2" = "S2B", "B3" = "S3B", "B4" = "S4B")
 ML_B4_S <- rename(ML_B4_S, all_of(names_S))
 
 #ML_B4_U <- t(ML_B4_U) 
@@ -282,8 +408,8 @@ calculate_accuracy <- function(data, indices, cols) {
 }
 
 set.seed(123)
-nbootstrap <- 10 #numero de reamostras
-bootstrap_size <- 10 #genes por conjunto
+nbootstrap <- 10 #numero de reamostras # I used up to 10000 nbootstraps!
+bootstrap_size <- 10 #genes por conjunto # I used from 10 to 50 bootstrap sizes!
 indices<-lapply(1:nbootstrap,function(b)sample(1:nrow(data),bootstrap_size,replace=TRUE))
 names(indices)<- paste0("Bootstrap",1:nbootstrap)
 indices2<-lapply(indices, function(boot){
@@ -307,6 +433,13 @@ for(i in seq_along(indices2)) {
   cols_df$mean_acc_test <- median(cols_df$acc_teste)
   accuracy_df <- rbind(accuracy_df,cols_df)
 }
+
+#--------------Results from Classification are in the directory, including:
+  #accuracy_df_10_10000 to accuracy_df_50_10000 , with the overview of all the results!
+  #cols , which are the columns(samples) used for testing!
+  #indices_10_10000 to indices_50_10000, which are the genes selected for each bootstrap!
+ 
+
 #------Plot to see the results from classification: -------
 acc10_B <- data_frame(Resample=accuracy_df_10_10000$boot,
                       Accuracy=accuracy_df_10_10000$mean_acc_test)
@@ -321,6 +454,7 @@ acc50_B <- data_frame(Resample=accuracy_df_50_10000$boot,
 #acc100_B <- data_frame(Resample=accuracy_df_100_1000$boot,
 #                     Accuracy=accuracy_df_100_1000$mean_acc_test)
 
+detach(package:plyr)
 acc10_B <- acc10_B %>% group_by(Resample) %>% 
   summarise(Accuracy = mean(Accuracy)) %>%
   filter(Accuracy >= 0.5) %>%
@@ -384,7 +518,7 @@ ggplot(acc_B_col) +
 
 acc_B_col_chosen <- acc_B_col %>%
   group_by(boot, Size) %>%
-  filter(any(acc_test >= 0.7))
+  filter(any(acc_teste >= 0.7))
 # Calculate the minimum and maximum acc_teste for each boot
 acc_B_range_chosen <- acc_B_col_chosen %>% 
   group_by(boot, Size) %>% 
@@ -405,7 +539,7 @@ ggplot(acc_B_col_chosen) +
   xlab("Resample") +
   ylab("Accuracy")
 
-#FOCUSING ONLY IN THE RESAMPLES CHOSEN ---
+#FOCUSING ONLY IN THE 6 RESAMPLES CHOSEN ---
 acc_B_col_chosen_6 <- acc_B_col %>%
   group_by(boot, Size) %>%
   filter(any(mean_acc_test >= 0.7))
@@ -418,7 +552,7 @@ ggplot(acc_B_col_chosen_6) +
   facet_wrap(~Size, nrow = 1) +
   geom_segment(data = acc_B_range_chosen_6, aes(x=boot, xend=boot, y=acc_min, yend=acc_max), color="lightgrey") +
   geom_point(aes(y = acc_teste, x=boot, color = cols), position="dodge") +
-  geom_hline(yintercept=0.7, linetype="dashed", color = "black", size=0.5) +
+  #geom_hline(yintercept=0.7, linetype="dashed", color = "black", size=0.5) +
   stat_identity(aes(y = mean_acc_test, x=boot), geom="line", position="dodge", color = "black", alpha=0.5) + #size=0.5, shape="triangle"
   coord_cartesian(ylim=c(0.1, 1)) +
   #coord_cartesian(xlim=c(1, 10)) +
@@ -433,14 +567,14 @@ ggplot(acc_B_col_chosen_6) +
 # BONE 4 2C: Getting the best GENES (UNIQUE or UNION) of the best boots from the classification:
 #Best boots: 166,799,2742,5019,5449,7064 <- They all showed 0.7 median test accuracy!
 #50 genes unique!
-melhor_genes_unique_B <- cbind(indices_10_10000[[167]],indices_10_10000[[800]],indices_10_10000[[2743]],indices_10_10000[[5020]],indices_10_10000[[5450]],indices_10_10000[[7065]])
+melhor_genes_unique_B <- cbind(indices_10_10000[[166]],indices_10_10000[[799]],indices_10_10000[[2742]],indices_10_10000[[5019]],indices_10_10000[[5449]],indices_10_10000[[7064]])
 melhor_genes_unique_B <- as.data.frame(melhor_genes_unique_B)
 melhor_genes_unique_B <- unique(c(melhor_genes_unique_B[,1],melhor_genes_unique_B[,2], melhor_genes_unique_B[,3], melhor_genes_unique_B[,4], melhor_genes_unique_B[,5], melhor_genes_unique_B[,6]))
 
 
 melhor_genes_B <- B4[melhor_genes_unique_B,]
 melhor_genes_B <- melhor_genes_B[[1]]
-melhor_genes_B <- top_genes_B4_2C[,melhor_genes_B]
+melhor_genes_B <- top_genes_B4[,melhor_genes_B]
 pca_melhor_B4_2C <- prcomp(melhor_genes_B, center = TRUE, scale = FALSE) # center = TRUE ,scale = FALSE
 summary(pca_melhor_B4_2C)
 
@@ -463,33 +597,33 @@ summary(pca_melhor_B4_2C)
 
 #--Smaller SD: 166,5019,5449---
 #27 genes!
-melhor_genes_unique_B <- cbind(indices_10_10000[[167]],indices_10_10000[[5020]],indices_10_10000[[5450]])
+melhor_genes_unique_B <- cbind(indices_10_10000[[166]],indices_10_10000[[5019]],indices_10_10000[[5449]])
 melhor_genes_unique_B <- as.data.frame(melhor_genes_unique_B)
 melhor_genes_unique_B <- unique(c(melhor_genes_unique_B[,1],melhor_genes_unique_B[,2], melhor_genes_unique_B[,3]))
 melhor_genes_unique_B <- intersect(melhor_genes_unique_B[,2],melhor_genes_unique_B[,3])
 
 melhor_genes_B <- B4[melhor_genes_unique_B,]
 melhor_genes_B <- melhor_genes_B[[1]]
-melhor_genes_B <- top_genes_B4_2C[,melhor_genes_B]
+melhor_genes_B <- top_genes_B4[,melhor_genes_B]
 #melhor_genes_B <- colnames(melhor_genes_B)
-pca_melhor_B4_2C <- prcomp(melhor_genes_B, center = TRUE, scale = FALSE) # center = TRUE ,scale = FALSE
-summary(pca_melhor_B4_2C)
+pca_melhor_B4 <- prcomp(melhor_genes_B, center = TRUE, scale = FALSE) # center = TRUE ,scale = FALSE
+summary(pca_melhor_B4)
 
 #OPTION: Getting the worst genes:
 #WORST GENES
 #8122 and 9532
-piores_genes_unique_B <- cbind(indices_10_10000[[8123]],indices_10_10000[[9533]])
+piores_genes_unique_B <- cbind(indices_10_10000[[8122]],indices_10_10000[[9532]])
 piores_genes_unique_B <- as.data.frame(piores_genes_unique_B)
 piores_genes_unique_B <- unique(c(piores_genes_unique_B[,1],piores_genes_unique_B[,2]))
 
 
 pior_genes_B <- B4[piores_genes_unique_B,]
 pior_genes_B <- pior_genes_B[[1]]
-pior_genes_B <- top_genes_B4_2C[,pior_genes_B]
-pca_pior_B4_2C <- prcomp(pior_genes_B, center = TRUE, scale = FALSE) # center = TRUE ,scale = FALSE
-summary(pca_pior_B4_2C)
-#----If there is more than 1 tissue, a GENE intersection can be made:-------
-#---------- Comparison between tissues: ---------------
+pior_genes_B <- top_genes_B4[,pior_genes_B]
+pca_pior_B4 <- prcomp(pior_genes_B, center = TRUE, scale = FALSE) # center = TRUE ,scale = FALSE
+summary(pca_pior_B4)
+
+#---- Getting gene names instead of Gene IDs -------------------
 #Using the gene_IDS or the gene_names using the GTF data for the organism to get the gene_names
 org.Mm.eg.db #To get the details of this annotation
 
@@ -502,11 +636,29 @@ melhor_genes_B4 <- sub("\\.\\d+$", "", melhor_genes_B) #melhor_genes_B from Supe
 #melhor_genes_50_B4 <- sub("\\.\\d+$", "", melhor_genes_50_10000) #Melhor_genes_10_10000 from Supervised.R
 #pior_genes_10_B4 <- sub("\\.\\d+$", "", pior_genes_10_10000) #Melhor_genes_10_10000 from Supervised.R
 
+##------ Preparing the GTF data to get the names for the genes_ids
+gtf_data <- gencode.vM35.primary_assembly.annotation #THis is the gtf data uploaded!
+# Split the ninth column based on semicolon (;)
+gtf_data$split_data <- strsplit(gtf_data[, 9], ";")
+
+# Separate gene_id and gene_name from the split data
+gtf_data$gene_id <- sapply(gtf_data$split_data, function(x) x[grepl("gene_id", x)])
+gtf_data$gene_name <- sapply(sapply(gtf_data$split_data, function(x) x[grepl("gene_name", x)]), function(x) str_replace_all(x, "gene_name ", ""))
+
+# Clean gene_name (remove extra spaces)
+gtf_data$gene_name <- gsub(" +$", "", gtf_data$gene_name)
+
+# Remove the temporary split column
+gtf_data <- gtf_data[ , !(names(gtf_data) %in% "split_data")]
+GTF_data <- gtf_data[,10:11]
+# Remove "gene_id " from the ninth column
+GTF_data[, 1] <- gsub("^gene_id ", "", GTF_data[, 1])
+
 #To use later, getting the names of the classification genes:
 GTF_data <- unique(GTF_data)
 melhor_genes_B_gtf <- GTF_data %>% filter(GTF_data$gene_id %in% melhor_genes_B)
 
-
+#---- Comparison between tissues. If there is more than 1 tissue, a GENE intersection can be made:-------
 #Getting the genes that are used for classification for both tissues that are the same or just to that tissue:
 Same_Genes_Tissues <- intersect(melhor_genes_S_gtf$gene_name, melhor_genes_B_gtf$gene_name)
 intersect(melhor_genes_S_gtf$gene_id, melhor_genes_B_gtf$gene_id)
@@ -549,14 +701,15 @@ ggplot(log2fc_B) +
   theme(legend.position = "none")
 
 #Correlation analysis-----------------
-corr_10_B4 <- top_genes_B4[,melhor_genes_B]
+corr_10_B4 <- top_genes_B4[,melhor_genes_B$gene_id]
+corr_10_B4 <- as.data.frame(corr_10_B4)
+
+corr_10_B4_F <- corr_10_B4[1:4,]
+corr_10_B4_S <- corr_10_B4[5:8,]
 
 #Changing the gene_ids to gene_names
 corr_10_B4_name <- corr_10_B4 %>%
   rename_all(~ melhor_genes_B_gtf$gene_name[match(., melhor_genes_B_gtf$gene_id)])
-
-corr_10_B4_F <- corr_10_B4[1:4,]
-corr_10_B4_S <- corr_10_B4[5:8,]
 
 corr_10_B4_name_F <- corr_10_B4_name[1:4,]
 corr_10_B4_name_S <- corr_10_B4_name[5:8,]
@@ -585,18 +738,22 @@ ggplot(gene_pairs_corr_10_B4, aes(x=Gene, y=Correlation)) +
   theme_bw()
 
 #------------ Correlation between GENES for each condition
-# Assuming 'gene_expression_data' is your matrix or data frame
-correlation_matrix_10_B4 <- cor(corr_10_B4)
+correlation_matrix_10_B4 <- cor(corr_10_B4) ##NOT USED: Correlation between genes but using both conditions together!
 
+#now focusing in each condition for comparison
 correlation_matrix_10_B4_F <- cor(corr_10_B4_F)
 colnames(correlation_matrix_10_B4_F) <- colnames(corr_10_B4_name)
 rownames(correlation_matrix_10_B4_F) <- colnames(corr_10_B4_name)
+# Create a correlation heatmap with order parameter using known AOE method
+corrplot(correlation_matrix_10_B4_F, method = "color", col=colorRampPalette(c("#f57600","white","#0073e6"))(100), type = "lower", tl.cex = 0.5, tl.col="black", number.cex = 0.5, order = "AOE") #To add values inside: addCoef.col = "black", #For significance: p.mat = cor_test_S4_F$p, sig.level = 0.05,
 
 correlation_matrix_10_B4_S <- cor(corr_10_B4_S)
 colnames(correlation_matrix_10_B4_S) <- colnames(corr_10_B4_name)
 rownames(correlation_matrix_10_B4_S) <- colnames(corr_10_B4_name)
+# Create a correlation heatmap with order parameter using known AOE method
+corrplot(correlation_matrix_10_B4_S, method = "color", col=colorRampPalette(c("#f57600","white","#0073e6"))(100), type = "lower", tl.cex = 0.5, tl.col="black", number.cex = 0.5, order = "AOE") #To add values inside: addCoef.col = "black", #For significance: p.mat = cor_test_S4_F$p, sig.level = 0.05,
 
-#Top most correlated values -- But it uses pvalue! NOT USED in this research!
+# NOT USED in this research: Top most correlated values -- But it uses pvalue!
 install.packages("lares")
 library(lares)
 corr_cross(corr_10_B4, rm.na = T, max_pvalue = 0.05, top = 10, grid = T)
@@ -610,7 +767,8 @@ cor_diff_B4 <- abs(correlation_matrix_10_B4_F - correlation_matrix_10_B4_S)
 #Using a cutoff of the absolute difference between correlations
 #cor_diff_unique_B4 <- cor_diff_B4 >= 0.3 #Choose the cutoff!!!!
 #cor_diff_B4[!cor_diff_unique_B4] <- NA
-pheatmap(cor_diff_B4, col = heat.colors(4), na.rm = TRUE)
+
+#plotting
 pheatmap(cor_diff_B4, breaks = c(0,0.5,1,1.5,2), col = colorRampPalette(c("#fffd8d", "yellow", "red"))(4), na.rm = TRUE)
 #dev.off()
 
@@ -625,6 +783,7 @@ result_table_cor_B4 <- data.frame(
   Difference = cor_diff_B4[indices_cor_B4]
 )
 
+#plot alternative
 ggplot(result_table_cor_B4, aes(x=Gene1, y=Gene2, fill=Difference)) +
   geom_tile() +
   scale_fill_gradient2(low = "#fffd8d", mid = "yellow", high = "red") +
@@ -676,6 +835,7 @@ rules_B4_F <- rules_B4_F[!is.redundant(rules_B4_F)]   #from almost 700 thousand 
 
 #Still a lot of rules: 
 #Removing statistically insignificant rules:
+# NOT USED, but when tested yield the same results. 
 rules_B4_F <- rules_B4_F[!is.significant(rules_B4_F, 
                                          transactions_B4_F, 
                                          method = "fisher", 
@@ -710,7 +870,7 @@ plot(rules_B4_F)
 #Interactive plot of the rules
 plot(rules_B4_F, engine = "plotly")
 
-#Showing all the rules!
+#Showing all the rules for that condition in hubs: INTERACTIVE, nice!
 #subrules_B4_F <- head(rules_B4_F, n = 596, by = "confidence")
 plot(rules_B4_F, method = "graph",  engine = "htmlwidget", max = 600)
 
@@ -720,14 +880,14 @@ plot(rules_B4_F, method = "graph",  engine = "htmlwidget", max = 600)
 #This paracoord is not good for too many rules!
 #plot(rules_B4_F, method="paracoord", max = 600)
 
-#Showing ALL THE RULES using groups!!! How many rules have that LHS/gene in that level:
+#Nice options for plotting per condition: Showing ALL THE RULES using HUBS!!! How many rules have that LHS/gene in that level:
 plot(rules_B4_F, method = "grouped matrix", measure = "support", shading = "lift", control = list(k = 50), rhs_max	 =  50, main = NULL, col = "#0073e6") 
 plot(rules_B4_F, method = "matrix", reorder = "measure")
 
 #Showing ALL rules: Visualizing with Gephi (installed on my PC (for all users)):
 #saveAsGraph(head(rules_B4_F, n = 596, by = "lift"), file = "rules.graphml")
-library("igraph")
-saveAsGraph(rules_B4_F, file = "rules_B4_F.graphml")
+#library("igraph")
+#saveAsGraph(rules_B4_F, file = "rules_B4_F.graphml")
 
 # STANDARD:
 
@@ -754,11 +914,14 @@ summary(rules_B4_S)
 
 
 #Removing redundant rules: 
+#lift was not neccessary, as were all the same. Lift =2 (good)!
+
+#Using is.redundant function for removal of redundant rules:
 rules_B4_S <- rules_B4_S[!is.redundant(rules_B4_S)]   #from almost 700 thousand to 500 rules
 #fpgrowth_B4_F <- fpgrowth_B4_F[!is.redundant(fpgrowth_B4_F)]   #from almost 800 thousand to 500 rules
 
 #Still a lot of rules: 
-#Removing statistically insignificant rules:
+#NOT USED, but yielded no difference in the results when used in this case: Removing statistically insignificant rules:
 rules_B4_S <- rules_B4_S[!is.significant(rules_B4_S, 
                                          transactions_B4_S, 
                                          method = "fisher", 
@@ -774,8 +937,9 @@ inspect(rules_B4_S)
 rules_B4_S_df <- DATAFRAME(rules_B4_S, setStart='', setEnd='', separate = TRUE)
 #fpgrowth_B4_F_df <- DATAFRAME(fpgrowth_B4_F, setStart='', setEnd='', separate = TRUE)
 
+#PLotting but using lift. In our case its not neccessary:
 plot(rules_B4_S)
-#Interactive plot of the rules
+#Interactive plot of the rules. INTERACTIVE!
 plot(rules_B4_S, engine = "plotly")
 
 #subrules_B4_S <- head(rules_B4_S, n = 476, by = "confidence")
@@ -785,7 +949,7 @@ plot(rules_B4_S, engine = "plotly")
 #plot(subrules_B4_S, method="paracoord")
 
 
-#Showing all the rules!
+#Showing all the rules per condition in hubs, INTERACTIVE, nice!!!
 #subrules_B4_F <- head(rules_B4_F, n = 596, by = "confidence")
 plot(rules_B4_S, method = "graph",  engine = "htmlwidget", max = 600)
 
@@ -795,16 +959,16 @@ plot(rules_B4_S, method = "graph",  engine = "htmlwidget", max = 600)
 #This paracoord is not good for too many rules!
 #plot(rules_B4_F, method="paracoord", max = 600)
 
-#Showing ALL THE RULES using groups!!! How many rules have that LHS/gene in that level:
+#Showing ALL THE RULES using HUBS.NICE!!! How many rules have that LHS/gene in that level:
 plot(rules_B4_S, method = "grouped matrix", measure = "support", shading = "lift", control = list(k = 50), rhs_max	 =  50, main = NULL, col = "#0073e6") 
 plot(rules_B4_S, method = "matrix", reorder = "measure")
 
 #Showing ALL rules: Visualizing with Gephi (installed on my PC (for all users)):
 #saveAsGraph(head(rules_B4_F, n = 596, by = "lift"), file = "rules.graphml")
-library("igraph")
-saveAsGraph(rules_B4_S, file = "rules_B4_S.graphml")
+#library("igraph")
+#saveAsGraph(rules_B4_S, file = "rules_B4_S.graphml")
 
-#Comparison of rules between Conditions (Shared and Unique for each condition) -----
+#Unique and Shared RULES: Comparison of rules between Conditions (Shared and Unique for each condition) -----
 gene_rules_B4_F <- rules_B4_F_df
 gene_rules_B4_F$LHS <- gsub("\\=.*", "", gene_rules_B4_F$LHS)
 gene_rules_B4_F$RHS <- gsub("\\=.*", "", gene_rules_B4_F$RHS)
@@ -812,14 +976,6 @@ gene_rules_B4_F$RHS <- gsub("\\=.*", "", gene_rules_B4_F$RHS)
 gene_rules_B4_S <- rules_B4_S_df
 gene_rules_B4_S$LHS <- gsub("\\=.*", "", gene_rules_B4_S$LHS)
 gene_rules_B4_S$RHS <- gsub("\\=.*", "", gene_rules_B4_S$RHS)
-
-gene_rules_S4_F <- rules_S4_F_df
-gene_rules_S4_F$LHS <- gsub("\\=.*", "", gene_rules_S4_F$LHS)
-gene_rules_S4_F$RHS <- gsub("\\=.*", "", gene_rules_S4_F$RHS)
-
-gene_rules_S4_S <- rules_S4_S_df
-gene_rules_S4_S$LHS <- gsub("\\=.*", "", gene_rules_S4_S$LHS)
-gene_rules_S4_S$RHS <- gsub("\\=.*", "", gene_rules_S4_S$RHS)
 
 intersect_gene_rules_B4 <- intersect(gene_rules_B4_F, gene_rules_B4_S)
 unique_gene_rules_B4_F <- setdiff(gene_rules_B4_F, gene_rules_B4_S) #For FLASH only
@@ -830,6 +986,7 @@ unique_gene_rules_B4_F <- unique_gene_rules_B4_F[,1:2]
 unique_gene_rules_B4_S <- unique_gene_rules_B4_S[,1:2]
 
 # -------- Create a graph from the data frame (INTERSECT)
+library("igraph")
 graph_gene_rules_B4 <- graph_from_data_frame(intersect_gene_rules_B4, directed = TRUE)
 
 # Get the cluster memberships
@@ -849,6 +1006,7 @@ mycolor <- brewer.pal(n = length(unique_groups_intersect_B4), name = "Paired")
 V(graph_gene_rules_B4)$color <- mycolor[membership]
 
 #Arc diagram
+library("ggraph")
 ggraph(graph_gene_rules_B4, layout="linear") +
   geom_edge_arc(edge_colour="black", edge_alpha=0.2, edge_width=0.3, fold=TRUE) +
   geom_node_point(aes(size=5, color=as.factor(color), fill=color), alpha=0.5) +
@@ -1028,7 +1186,7 @@ for(m in modelos) {
   write.csv(accuracy_df,paste0("model_", m,".csv"))
 }
 
----------------------- # Modelos principais para testar
+---------------------- # Mais de um modelo principal para testar
 # Create a list to store hyperparameters for each algorithm!!! <---- Add here!!!!
 hyper_params <- list(
   rf = data.frame(mtry = c(1, 5, 10, sqrt(length(cols)))), 
@@ -1075,8 +1233,8 @@ calculate_accuracy <- function(data, indices, cols, modelo) {
 }
 
 set.seed(123)
-nbootstrap <- 10 #numero de reamostras
-bootstrap_size <- 10 #genes por conjunto
+nbootstrap <- 10 #numero de reamostras # CHANGE HERE!
+bootstrap_size <- 10 #genes por conjunto  # CHANGE HERE!
 indices<-lapply(1:nbootstrap,function(b)sample(1:nrow(data),bootstrap_size,replace=TRUE))
 names(indices)<- paste0("Bootstrap",1:nbootstrap)
 indices2<-lapply(indices, function(boot){
@@ -1090,7 +1248,7 @@ models_boot <- list()
 
 #modelos <- names(getModelInfo())
 #Choose algorithms here!!!!!!!!! :
-modelos <- c("rf", "ranger", "svmLinear2", "svmRadial", "nb", "knn", "gbm") 
+modelos <- c("rf", "ranger", "svmLinear2", "svmRadial", "nb", "knn", "gbm")  # CHANGE HERE!
 for(m in modelos) {
   for(i in seq_along(indices2)) {
     cols_df <- data.frame()
