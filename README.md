@@ -216,7 +216,7 @@ Identify conditional gene relationships using association rule mining.
 
 ```r
 # Perform association rule mining for gene relationships with different plot types and methods
-association_results <- mine_gene_associations(count_matrix, 1:4, plot_type = "scatter", interactive = TRUE, top_n = 600)
+association_results <- mine_gene_associations(data, 1:4, plot_type = "scatter", interactive = TRUE, top_n = 600)
 association_results <- mine_gene_associations(data, 1:4, method = "fpgrowth", plot_type = "graph", interactive = FALSE, lift = 2)
 
 # Focusing on genes of interest
