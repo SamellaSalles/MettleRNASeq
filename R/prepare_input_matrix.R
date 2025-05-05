@@ -40,6 +40,7 @@ prepare_input_matrix <- function(count_matrix,
                                  condition_col = NULL,
                                  sample_vector = NULL, 
                                  condition_vector = NULL) {
+  require(dplyr)
   
   # Validate input matrix
   if (ncol(count_matrix) > nrow(count_matrix)) {
