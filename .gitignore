@@ -1,1 +1,5 @@
-Code/.Rhistory
+.Rhistory
+.RData
+.Rproj.user
+.Rbuildignore
+.gitignore

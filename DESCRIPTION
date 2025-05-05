@@ -1,13 +1,34 @@
 Package: MettleRNASeq
-Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.9000
-Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"),
-           comment = c(ORCID = "YOUR-ORCID-ID"))
+Title: Complex RNA-Seq Data Analysis and Gene Relationships Exploration Based on Machine Learning
+Version: 1.0
+Date: 2025-05-05
+Authors@R: c(person("Samella", "Salles", , "ssalles@posgrad.lncc.br", role = c("aut", "cre", "cph"), comment = c(Institution = LNCC, ORCID = "0000-0001-5521-4717")), 
+			person("Otávio", "Brustolini", role = c("ths"),email = "tavinbio@lncc.br", comment = "LNCC"),
+			person("Luciane", "Ciapina", role = c("ths"),email = "luciane@lncc.br", comment = "LNCC"),
+			person("Kary", "Ocaña", role = c("ths"),email = "karyann@lncc.br", comment = "LNCC"))
 Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+Depends: R(>= 4.2.0)
+Imports:
+  edgeR,
+  DESeq2,
+  dplyr,
+  pheatmap,
+  plotly,
+  ggplot2,
+  corrplot,
+  factoextra,
+  caret,
+  e1071,
+  pROC,
+  arules,
+  arulesViz,
+  igraph,
+  RColorBrewer,
+  ggraph
+License: GPL (>= 2)
+BugReports: https://github.com/SamellaSalles/MettleRNASeq/issues
 Encoding: UTF-8
+NeedsCompilation: no
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
-Depends: R(>= 4.2.0), caret, FactoMineR, factoextra, gridExtra
+
