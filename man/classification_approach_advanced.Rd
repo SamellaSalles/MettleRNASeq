@@ -76,12 +76,19 @@ Output metrics include training and test accuracy per split and per resample, wi
 }
 \examples{
 \dontrun{
-input_data <- prepare_input_matrix(my_counts, sample_vector = sample_names, condition_vector = condition_labels)
+# Example sample and condition vectors
+sample <- c("F1B", "F2B", "F3B", "F4B", "S1B", "S2B", "S3B", "S4B")
+condition <- c("FLASH", "FLASH", "FLASH", "FLASH", "STAN", "STAN", "STAN", "STAN")
+data <- matrix(runif(8 * 100), nrow = 100, ncol = 8)
+colnames(data) <- sample
+result <- prepare_input_matrix(count_matrix = data, sample_vector = sample, condition_vector = condition)
+result
+
 hyper_params <- list(
   rf = data.frame(mtry = c(1, 5, 10))
 )
 results <- classification_approach_advanced(
-  input_data = input_data,
+  input_data = result,
   algorithms = c("rf"),
   hyper_params = hyper_params,
   num_resamples = 5,
