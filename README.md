@@ -31,11 +31,11 @@ __Acknowledgements:__ The authors thank the National Laboratory for Scientific C
 ### Usage:
 ```r
 #Install MettleRNASeq package
-> install.packages("devtools")
-> devtools::install_github("https://github.com/SamellaSalles/MettleRNASeq")
+install.packages("devtools")
+devtools::install_github("SamellaSalles/MettleRNASeq")
 
 #Load MettleRNASeq package
-> library("MettleRNASeq")
+library("MettleRNASeq")
 ```
 #####
 
