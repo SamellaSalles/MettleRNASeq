@@ -2,7 +2,7 @@ Package: MettleRNASeq
 Title: Complex RNA-Seq Data Analysis and Gene Relationships Exploration Based on Machine Learning
 Version: 1.0
 Date: 2025-05-05
-Authors@R: c(person("Samella", "Salles", , "ssalles@posgrad.lncc.br", role = c("aut", "cre", "cph"), comment = c(Institution = LNCC, ORCID = "0000-0001-5521-4717")), 
+Authors@R: c(person("Samella", "Salles", , "ssalles@posgrad.lncc.br", role = c("aut", "cre", "cph"), comment = c(Institution = "LNCC", ORCID = "0000-0001-5521-4717")), 
 			person("Otávio", "Brustolini", role = c("ths"),email = "tavinbio@lncc.br", comment = "LNCC"),
 			person("Luciane", "Ciapina", role = c("ths"),email = "luciane@lncc.br", comment = "LNCC"),
 			person("Kary", "Ocaña", role = c("ths"),email = "karyann@lncc.br", comment = "LNCC"))
