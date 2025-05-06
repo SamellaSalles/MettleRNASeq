@@ -1,19 +1,19 @@
 cff-version: 1.2.0
-message: If you use this software, please cite it using these metadata.
+message: "If you use this software, please cite it as below."
 authors:
-  - family-names: Salles
-    given-names: Samella
+  - family-names: "Salles"
+    given-names: "Samella"
     orcid: "https://orcid.org/0000-0001-5521-4717"
-  - family-names: Brustolini
-    given-names: Otávio
+	- family-names: "Brustolini"
+    given-names: "Otávio"
     orcid: "https://orcid.org/0000-0001-8132-9753"
-  - family-names: Ciapina
-    given-names: Luciane
+  - family-names: "Ciapina"
+    given-names: "Luciane"
     orcid: "https://orcid.org/0000-0003-1894-3923"
-  - family-names: Ocaña
-    given-names: Kary
+  - family-names: "Ocaña"
+    given-names: "Kary"
     orcid: "https://orcid.org/0000-0002-2151-7418"
-title: MettleRNASeq: Complex RNA-Seq Data Analysis and Gene Relationships Exploration Based on Machine Learning
+title: "MettleRNASeq: Complex RNA-Seq Data Analysis and Gene Relationships Exploration Based on Machine Learning"
 abstract: MettleRNASeq is a robust alternative for RNA-Seq data analysis, particularly tailored for complex datasets that are common in biological research. Traditional differential gene expression (DGE) analysis might struggle when RNA-Seq datasets possess characteristics that hinder the power of statistical analyses, such as a limited number of replicates or high variability. MettleRNASeq integrates machine learning techniques, a tailored classification approach, association rule mining, and complementary correlation analysis to accurately identify key genes that distinguish experimental conditions and emphasize gene relationships. This package is designed to be easy to use and practical, especially for biologists. It fits a wide range of transcriptomic studies, providing users with flexible tools to analyze complex datasets and gain insights into disease mechanisms, treatments, and their progression.
 version: 1.0
 date-released: "2025-05-05"
