@@ -6,6 +6,8 @@ __Date:__ 2025-05
 __Authors:__ Samella Salles (<ssalles@posgrad.lncc.br>), Otávio Brustolini (<tavinbio@lncc.br>), Luciane Ciapina (<luciane@lncc.br>), Kary Ocaña (<karyann@lncc.br>)
 
 **Description**: 
+#### This package follows the MettleRNASeq approach described in the bioRxiv preprint: https://doi.org/10.1101/2025.05.06.652387
+
 
 **MettleRNASeq** is a robust alternative for RNA-Seq data analysis, particularly tailored for complex datasets that are common in biological research. Traditional differential gene expression (DGE) analysis might struggle when RNA-Seq datasets possess characteristics that hinder the power of statistical analyses, such as a limited number of replicates or high variability. MettleRNASeq integrates machine learning techniques, a tailored classification approach, association rule mining, and complementary correlation analysis to accurately identify key genes that distinguish experimental conditions and emphasize gene relationships.
 
@@ -23,7 +25,6 @@ The package offers a range of functions for RNA-Seq data analysis, including:
 *  **icc_difference** - Absolute Difference Between Intra-Condition Correlations (ICC) for identification of unique and shared gene relationships between conditions.
 *  **mine_gene_associations** - Analysis of conditional gene relationships through association rule mining.
 *  **compare_gene_rules** - Comparison of Gene Association Rules, identifying gene hubs unique and shared between conditions.
-
 
 __Acknowledgements:__ The authors thank the National Laboratory for Scientific Computing (LNCC, Brazil) for providing support and access to the Santos Dumont (SDumont) Supercomputer. We also acknowledge the Coordination for the Improvement of Higher Education Personnel (CAPES) for funding this research. Special thanks to Rebecca Salles for the valuable discussions and feedback.
 
