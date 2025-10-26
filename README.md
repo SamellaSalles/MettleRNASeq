@@ -3,7 +3,8 @@
 # MettleRNASeq Package for R: Complex RNA-Seq Data Analysis and Gene Relationships Exploration Based on Machine Learning
 __Current Version:__ 1.0
 __Date:__ 2025-05
-__Authors:__ Samella Salles (<ssalles@posgrad.lncc.br>), Otávio Brustolini (<tavinbio@lncc.br>), Luciane Ciapina (<luciane@lncc.br>), Kary Ocaña (<karyann@lncc.br>)
+__Author:__ Samella Salles (<ssalles@posgrad.lncc.br>)
+__Advisors:__ Otávio Brustolini (<tavinbio@lncc.br>), Luciane Ciapina (<luciane@lncc.br>), Kary Ocaña (<karyann@lncc.br>)
 
 **Description**: 
 
