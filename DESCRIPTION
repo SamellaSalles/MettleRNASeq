@@ -1,34 +1,56 @@
 Package: MettleRNASeq
-Title: Complex RNA-Seq Data Analysis and Gene Relationships Exploration Based on Machine Learning
-Version: 1.0
-Date: 2025-05-05
-Authors@R: c(person("Samella", "Salles", , "ssalles@posgrad.lncc.br", role = c("aut", "cre", "cph"), comment = c(Institution = "LNCC", ORCID = "0000-0001-5521-4717")), 
-			person("Otávio", "Brustolini", role = c("ths"),email = "tavinbio@lncc.br", comment = "LNCC"),
-			person("Luciane", "Ciapina", role = c("ths"),email = "luciane@lncc.br", comment = "LNCC"),
-			person("Kary", "Ocaña", role = c("ths"),email = "karyann@lncc.br", comment = "LNCC"))
-Description: MettleRNASeq is a robust alternative for RNA-Seq data analysis, particularly tailored for complex datasets that are common in biological research. Traditional differential gene expression (DGE) analysis might struggle when RNA-Seq datasets possess characteristics that hinder the power of statistical analyses, such as a limited number of replicates or high variability. MettleRNASeq integrates machine learning techniques, a tailored classification approach, association rule mining, and complementary correlation analysis to accurately identify key genes that distinguish experimental conditions and emphasize gene relationships. This package is designed to be easy to use and practical, especially for biologists. It fits a wide range of transcriptomic studies, providing users with flexible tools to analyze complex datasets and gain insights into disease mechanisms, treatments, and their progression.
-Depends: R(>= 4.2.0)
-Imports:
-  edgeR,
-  DESeq2,
-  dplyr,
-  pheatmap,
-  plotly,
-  ggplot2,
-  corrplot,
-  factoextra,
-  caret,
-  e1071,
-  pROC,
-  arules,
-  arulesViz,
-  igraph,
-  RColorBrewer,
-  ggraph
+Title: Machine-Learning-Assisted Analysis of Complex RNA-Seq Datasets
+Version: 1.0.0
+Authors@R: c(
+    person(
+        given = "Samella",
+        family = "Salles",
+        email = "ssalles@posgrad.lncc.br",
+        role = c("aut", "cre", "cph"),
+        comment = c(ORCID = "0000-0001-5521-4717")
+    )
+)
+Description: Provides tools for machine-learning-assisted analysis of
+    complex RNA-seq datasets, especially when traditional differential gene
+    expression analysis is limited by small sample size, high variability, or
+    complex biological mechanisms. MettleRNASeq integrates data preparation,
+    principal component analysis, feature selection, tailored classification,
+    correlation analysis, and association rule mining to identify
+    discriminative genes and explore gene relationships across experimental
+    conditions.
 License: GPL (>= 2)
+URL: https://github.com/SamellaSalles/MettleRNASeq
 BugReports: https://github.com/SamellaSalles/MettleRNASeq/issues
 Encoding: UTF-8
-NeedsCompilation: no
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
-
+RoxygenNote: 7.3.3
+Depends:
+    R (>= 4.2.0)
+Imports:
+    arules,
+    arulesViz,
+    caret,
+    corrplot,
+    DESeq2,
+    dplyr,
+    e1071,
+    edgeR,
+    factoextra,
+    ggplot2,
+    ggraph,
+    igraph,
+    pheatmap,
+    plotly,
+    pROC,
+    RColorBrewer,
+    stats,
+    utils
+Suggests:
+    covr,
+    knitr,
+    pkgdown,
+    rmarkdown,
+    testthat (>= 3.0.0)
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+NeedsCompilation: no
