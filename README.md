@@ -1,19 +1,41 @@
 <img src="MettleRNASeq.png" alt="MettleRNASeq" class="inline" height="100"/>
 
-# MettleRNASeq Package for R: Complex RNA-Seq Data Analysis and Gene Relationships Exploration Based on Machine Learning
-__Current Version:__ 1.0
-__Date:__ 2025-05
+# MettleRNASeq Package for R: Machine-learning-assisted analysis of complex RNA-seq datasets
+__Current Version:__ 1.0.0
 __Author:__ Samella Salles (<ssalles@posgrad.lncc.br>)
 __Advisors:__ Otávio Brustolini (<tavinbio@lncc.br>), Luciane Ciapina (<luciane@lncc.br>), Kary Ocaña (<karyann@lncc.br>)
 
 **Description**: 
-#### This package follows the MettleRNASeq approach described in the bioRxiv preprint: https://doi.org/10.1101/2025.05.06.652387
-
 
 **MettleRNASeq** is a robust alternative for RNA-Seq data analysis, particularly tailored for complex datasets that are common in biological research. Traditional differential gene expression (DGE) analysis might struggle when RNA-Seq datasets possess characteristics that hinder the power of statistical analyses, such as a limited number of replicates or high variability. MettleRNASeq integrates machine learning techniques, a tailored classification approach, association rule mining, and complementary correlation analysis to accurately identify key genes that distinguish experimental conditions and emphasize gene relationships.
 
 This package is designed to be easy to use and practical, especially for biologists. It fits a wide range of transcriptomic studies, providing users with flexible tools to analyze complex datasets and gain insights into disease mechanisms, treatments, and their progression.
-The package offers a range of functions for RNA-Seq data analysis, including:
+
+Overview of the MettleRNASeq approach. 
+<img src="Fluxogram_MettleRNASeq.png" alt="Fluxogram_MettleRNASeq" class="inline" height="200"/>
+Data obtention steps are shown in the white rectangles. MettleRNASeq approach is illustrated in
+the light gray box, encompassing data preparation steps (in light pink) and the three key analyses: tailored classification (in green) and the gene
+relationship-focused correlation analysis and association rule mining (in blue tones). Biological analyses both gene and relationship-focused are shown
+in yellow.
+
+MettleRNASeq can be gene and relationship focused and presents as main features:
+
+✔ Robust preprocessing
+
+✔ PCA-based feature selection
+
+✔ Machine-learning-assisted classification
+
+✔ Correlation analysis
+
+✔ Association Rule Mining
+
+✔ Network visualization
+
+✔ Candidate biomarker discovery
+
+
+This package offers a range of functions for RNA-Seq data analysis, including:
 *  **normalize_count_matrix** - Data cleaning and normalization using TMM, DESeq2, or scaling methods.
 *  **compute_distance_matrix** - Generation of distance matrices and heatmaps.
 *  **pca_analysis** - PCA analysis, visualization of principal components, plotting of cos2, 2D and 3D PCA plots.
@@ -27,7 +49,7 @@ The package offers a range of functions for RNA-Seq data analysis, including:
 *  **mine_gene_associations** - Analysis of conditional gene relationships through association rule mining.
 *  **compare_gene_rules** - Comparison of Gene Association Rules, identifying gene hubs unique and shared between conditions.
 
-__Acknowledgements:__ The authors thank the National Laboratory for Scientific Computing (LNCC, Brazil) for providing support and access to the Santos Dumont (SDumont) Supercomputer. We also acknowledge the Coordination for the Improvement of Higher Education Personnel (CAPES) for funding this research. Special thanks to Rebecca Salles for the valuable discussions and feedback.
+#### This package follows the MettleRNASeq approach described in the bioRxiv preprint: https://doi.org/10.1101/2025.05.06.652387
 
 ---
 ### Usage:
@@ -47,11 +69,12 @@ Normalize RNA-Seq count data using TMM, DESeq2, or scaling methods.
 
 ```r
 # Example count matrix (samples as rows, genes as columns)
-count_matrix <- data.frame(
-  Gene1 = c(10, 20, 30, 40),
-  Gene2 = c(15, 25, 35, 45),
-  Gene3 = c(12, 22, 32, 42)
-)
+ count_matrix <- data.frame(
+	Gene1 = c(10, 15, 18, 25, 31, 40),
+	Gene2 = c(12, 14, 20, 24, 35, 39),
+	Gene3 = c(30, 28, 25, 22, 18, 15),
+	Gene4 = c(5, 9, 7, 13, 11, 16)
+ )
 
 # Normalize using TMM method
 norm_counts_tmm <- normalize_count_matrix(count_matrix, method = "TMM")
@@ -84,11 +107,12 @@ Perform PCA analysis, visualize principal components, and generate 2D and 3D PCA
 # Example 1: PCA analysis with a design matrix
   # Example count matrix (samples as rows, genes as columns)
  count_matrix <- data.frame(
-   Gene1 = c(10, 20, 30, 40),
-   Gene2 = c(15, 25, 35, 45),
-   Gene3 = c(12, 22, 32, 42)
+	Gene1 = c(10, 15, 18, 25, 31, 40),
+	Gene2 = c(12, 14, 20, 24, 35, 39),
+	Gene3 = c(30, 28, 25, 22, 18, 15),
+	Gene4 = c(5, 9, 7, 13, 11, 16)
  )
-
+ 
 # Example design matrix (conditions for each sample)
  design_matrix <- data.frame(
   Condition = c("A", "A", "B", "B")
@@ -243,4 +267,4 @@ comparison_results$gene_hubs  # Gene hubs unique or shared across conditions
 ```
 
 
-
+__Acknowledgements:__ The authors thank the National Laboratory for Scientific Computing (LNCC, Brazil) for providing support and access to the Santos Dumont (SDumont) Supercomputer. We also acknowledge the Coordination for the Improvement of Higher Education Personnel (CAPES) for funding this research. Special thanks to Rebecca Salles for the valuable discussions and feedback.

@@ -8,7 +8,8 @@ compare_gene_rules(
   rules_df1,
   rules_df2,
   condition_names = c("Condition1", "Condition2"),
-  plot = TRUE
+  plot = TRUE,
+  layout_type = "linear"
 )
 }
 \arguments{
