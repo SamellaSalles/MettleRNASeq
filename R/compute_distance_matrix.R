@@ -32,9 +32,10 @@
 #' @examples
 #' # Example count matrix (samples as rows, genes as columns)
 #' count_matrix <- data.frame(
-#'   Gene1 = c(10, 20, 30),
-#'   Gene2 = c(15, 25, 35),
-#'   Gene3 = c(12, 22, 32)
+#'   Gene1 = c(10, 15, 18, 25, 31, 40),
+#'   Gene2 = c(12, 14, 20, 24, 35, 39),
+#'   Gene3 = c(30, 28, 25, 22, 18, 15),
+#'   Gene4 = c(5, 9, 7, 13, 11, 16)
 #' )
 #'
 #' # Compute distance matrix using Euclidean distance and plot heatmap
