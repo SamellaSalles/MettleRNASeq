@@ -7,7 +7,9 @@ __Advisors:__ Otávio Brustolini (<tavinbio@lncc.br>), Luciane Ciapina (<luciane
 
 **Description**: 
 
-**MettleRNASeq** is a robust alternative for RNA-Seq data analysis, particularly tailored for complex datasets that are common in biological research. Traditional differential gene expression (DGE) analysis might struggle when RNA-Seq datasets possess characteristics that hinder the power of statistical analyses, such as a limited number of replicates or high variability. MettleRNASeq integrates machine learning techniques, a *tailored classification approach*, *association rule mining*, and complementary *correlation analysis* to accurately identify key *genes* that distinguish experimental conditions and emphasize *gene relationships*.
+#### This package follows the MettleRNASeq approach described in the bioRxiv preprint: https://doi.org/10.1101/2025.05.06.652387
+
+**MettleRNASeq** is a robust alternative for RNA-Seq data analysis, particularly tailored for complex datasets that are common in biological research. Traditional differential gene expression (DGE) analysis might struggle when RNA-Seq datasets possess characteristics that hinder the power of statistical analyses, such as a limited number of replicates or high variability. MettleRNASeq integrates machine learning techniques, a **tailored classification approach**, **association rule mining**, and complementary **correlation analysis** to accurately identify key **genes** that distinguish experimental conditions and emphasize **gene relationships**.
 
 This package is designed to be easy to use and practical, especially for biologists. It fits a wide range of transcriptomic studies, providing users with flexible tools to analyze complex datasets and gain insights into disease mechanisms, treatments, and their progression.
 
@@ -16,8 +18,6 @@ This package is designed to be easy to use and practical, especially for biologi
 ![MettleRNASeq workflow](man/figures/Fluxogram_MettleRNASeq.png)
 
 MettleRNASeq approach is illustrated in the light gray box, encompassing data preparation steps (in light pink) and the three key analyses: tailored classification (in green) and the gene relationship-focused correlation analysis and association rule mining (in blue tones). Biological analyses both gene and relationship-focused are shown in yellow.
-
-MettleRNASeq is accompanied by a methodological preprint (*described in the bioRxiv: https://doi.org/10.1101/2025.05.06.652387*) and provides configurable outputs for exploratory analysis, including classification metrics, resampling summaries, selected gene sets, correlation matrices, association rules, rule comparisons, and multiple visualization options. Several functions include user-defined parameters and optional parallel execution to support flexible transcriptomic analyses.
 
 This package offers a range of functions for RNA-Seq data analysis, including:
 *  **normalize_count_matrix** - Data cleaning and normalization using TMM, DESeq2, or scaling methods.
@@ -32,6 +32,8 @@ This package offers a range of functions for RNA-Seq data analysis, including:
 *  **icc_difference** - Absolute Difference Between Intra-Condition Correlations (ICC) for identification of unique and shared gene relationships between conditions.
 *  **mine_gene_associations** - Analysis of conditional gene relationships through association rule mining.
 *  **compare_gene_rules** - Comparison of Gene Association Rules, identifying gene hubs unique and shared between conditions.
+
+MettleRNASeq provides configurable outputs for exploratory analysis, including classification metrics, resampling summaries, selected gene sets, correlation matrices, association rules, rule comparisons, and multiple visualization options. Several functions include user-defined parameters and optional parallel execution to support flexible transcriptomic analyses.
 
 ---
 ### Installation:
