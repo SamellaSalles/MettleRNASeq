@@ -1,4 +1,5 @@
 <img src="man/figures/MettleRNASeq.png" alt="MettleRNASeq" class="inline" height="100"/>
+
 # MettleRNASeq Package for R: Machine-learning-assisted analysis of complex RNA-seq datasets
 __Current Version:__ 1.0.0
 __Author:__ Samella Salles (<ssalles@posgrad.lncc.br>)
@@ -14,7 +15,7 @@ MettleRNASeq is accompanied by a methodological preprint (*described in the bioR
 
 **Overview of the MettleRNASeq approach**
 ![MettleRNASeq workflow](man/figures/Fluxogram_MettleRNASeq.png)
-#####Data obtention steps are shown in the white rectangles. MettleRNASeq approach is illustrated in the light gray box, encompassing data preparation steps (in light pink) and the three key analyses: tailored classification (in green) and the gene relationship-focused correlation analysis and association rule mining (in blue tones). Biological analyses both gene and relationship-focused are shown in yellow.
+####Data obtention steps are shown in the white rectangles. MettleRNASeq approach is illustrated in the light gray box, encompassing data preparation steps (in light pink) and the three key analyses: tailored classification (in green) and the gene relationship-focused correlation analysis and association rule mining (in blue tones). Biological analyses both gene and relationship-focused are shown in yellow.
 
 MettleRNASeq can be gene and relationship focused and presents as main features:
 
@@ -48,7 +49,7 @@ This package offers a range of functions for RNA-Seq data analysis, including:
 *  **compare_gene_rules** - Comparison of Gene Association Rules, identifying gene hubs unique and shared between conditions.
 
 ---
-### Usage:
+### Installation:
 ```r
 #Install MettleRNASeq package
 install.packages("devtools")
