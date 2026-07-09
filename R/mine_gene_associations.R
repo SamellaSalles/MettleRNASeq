@@ -126,7 +126,7 @@ mine_gene_associations <- function(data,
   # Filter by lift
   if (!is.null(lift)) {
     rules <- rules[quality(rules)$lift >= lift]
-    cat("Filtered rules using lift ≥", lift, "\n")
+    cat("Filtered rules using lift >=", lift, "\n")
   }
   
   # Focus on specific genes if requested
