@@ -11,7 +11,7 @@ __Advisors:__ Otávio Brustolini (<tavinbio@lncc.br>), Luciane Ciapina (<luciane
 
 **MettleRNASeq** is a robust alternative for RNA-Seq data analysis, particularly tailored for complex datasets that are common in biological research. Traditional differential gene expression (DGE) analysis might struggle when RNA-Seq datasets possess characteristics that hinder the power of statistical analyses, such as a limited number of replicates or high variability. MettleRNASeq integrates machine learning techniques, a **tailored classification approach**, **association rule mining**, and complementary **correlation analysis** to accurately identify key **genes** that distinguish experimental conditions and emphasize **gene relationships**.
 
-This package is designed to be easy to use and practical, especially for biologists. It fits a wide range of transcriptomic studies, providing users with flexible tools to analyze complex datasets and gain insights into disease mechanisms, treatments, and their progression.
+This package is designed to be easy to use and practical, especially for biologists. It fits a wide range of transcriptomic studies, providing users with flexible tools to analyze complex RNA-Seq datasets.
 
 
 **Overview of the MettleRNASeq approach**
