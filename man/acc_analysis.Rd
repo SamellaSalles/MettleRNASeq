@@ -29,9 +29,11 @@ acc_analysis(
 \item{plot}{Logical indicating whether to generate a bar plot. Default is FALSE.}
 
 \item{color}{Color for the plot elements. Specify either:
-- Single color (e.g., "steelblue") for all bars
-- Vector of two colors (e.g., c("red", "blue")) for negative/positive correlations
-Default is c("red", "steelblue").}
+\itemize{
+\item Single color (e.g., "steelblue") for all bars
+\item Vector of two colors (e.g., c("red", "blue")) for negative/positive correlations
+Default is c("red", "steelblue").
+}}
 
 \item{orientation}{Plot orientation: "vertical" (default) or "horizontal" (uses coord_flip()).}
 

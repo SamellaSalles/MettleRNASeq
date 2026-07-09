@@ -41,14 +41,14 @@ Imports:
     plotly,
     pROC,
     RColorBrewer,
+    rlang,
     stats,
+    tidyr,
     utils
 Suggests:
-    covr,
     knitr,
     pkgdown,
     rmarkdown,
     testthat (>= 3.0.0)
-VignetteBuilder: knitr
 Config/testthat/edition: 3
 NeedsCompilation: no
