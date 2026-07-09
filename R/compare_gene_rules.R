@@ -38,7 +38,8 @@
 #' @export
 compare_gene_rules <- function(rules_df1, rules_df2,
                                condition_names = c("Condition1", "Condition2"),
-                               plot = TRUE) {
+                               plot = TRUE,
+							   layout_type = "linear") {
   # Load required libraries
   library(igraph)
   library(dplyr)
@@ -70,7 +71,7 @@ compare_gene_rules <- function(rules_df1, rules_df2,
     mycolor <- brewer.pal(n = max(mem), name = "Paired")
     V(g)$color <- mycolor[mem]
     
-    plot <- ggraph(g, layout = "linear") +
+    plot <- ggraph(g, layout = layout_type) +
       geom_edge_arc(edge_colour = "black", edge_alpha = 0.2, edge_width = 0.3, fold = TRUE) +
       geom_node_point(aes(size = 5, color = as.factor(color), fill = color), alpha = 0.5) +
       scale_size_continuous(range = c(0.5, 8)) +
