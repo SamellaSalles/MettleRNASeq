@@ -1,0 +1,19 @@
+citHeader("To cite MettleRNASeq in publications:")
+
+citEntry(
+  entry = "Manual",
+  title = "MettleRNASeq: Machine-Learning-Assisted Analysis of Complex RNA-Seq Datasets",
+  author = personList(
+    person("Samella", "Salles")
+  ),
+  year = "2026",
+  note = "R package version 1.0.0",
+  url = "https://github.com/SamellaSalles/MettleRNASeq",
+  textVersion =
+    paste(
+      "Salles S. (2026).",
+      "MettleRNASeq: Machine-Learning-Assisted Analysis of Complex RNA-Seq Datasets.",
+      "R package version 1.0.0.",
+      "https://github.com/SamellaSalles/MettleRNASeq"
+    )
+)

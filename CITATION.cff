@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 title: "MettleRNASeq"
-message: "If you use MettleRNASeq in your research, please cite the software as below."
+message: "If you use MettleRNASeq in your research, please cite the software as follows."
 type: software
 
 authors:
@@ -8,9 +8,18 @@ authors:
     given-names: Samella
     orcid: https://orcid.org/0000-0001-5521-4717
 
-version: 1.0.0
-date-released: 2025-05-05
+abstract: >
+  MettleRNASeq is an R package for machine-learning-assisted analysis of
+  complex RNA-seq datasets, especially when traditional differential gene
+  expression analysis is limited by small sample size, high variability,
+  or complex biological mechanisms.
+
+version: "1.0.0"
+
+date-released: 2026-07-09
+
+license: GPL-2.0-or-later
 
 repository-code: "https://github.com/SamellaSalles/MettleRNASeq"
 
-license: GPL-2.0-or-later
+url: "https://github.com/SamellaSalles/MettleRNASeq"
