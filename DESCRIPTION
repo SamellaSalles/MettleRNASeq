@@ -1,15 +1,13 @@
 Package: MettleRNASeq
 Title: Machine-Learning-Assisted Analysis of Complex RNA-Seq Datasets
 Version: 1.0.0
-Authors@R: c(
-    person(
+Authors@R: person(
         given = "Samella",
         family = "Salles",
         email = "ssalles@posgrad.lncc.br",
         role = c("aut", "cre", "cph"),
         comment = c(ORCID = "0000-0001-5521-4717")
     )
-)
 Description: Provides tools for machine-learning-assisted analysis of
     complex RNA-seq datasets, especially when traditional differential gene
     expression analysis is limited by small sample size, high variability, or
