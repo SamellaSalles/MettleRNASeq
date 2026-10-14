@@ -67,7 +67,7 @@ normalization for this matrix. The package includes `bone_expression.csv`
 and `bone_metadata.csv` in `inst/extdata`, loaded by the code above.
 The source data are from [GEO GSE173944](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE173944)
 and [Velalopoulou et al. (2021)](https://doi.org/10.1158/0008-5472.CAN-21-1500).
-Processing details are in `inst/extdata/PROVENANCE.txt`.
+Processing details are in the [data provenance](https://github.com/SamellaSalles/MettleRNASeq/blob/main/inst/extdata/PROVENANCE.md).
 
 For your own files, use an expression CSV with sample names in its first column
 and a metadata CSV with `Sample` and `Condition` columns. Align metadata explicitly.

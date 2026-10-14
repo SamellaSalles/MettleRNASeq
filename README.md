@@ -53,7 +53,7 @@ For function help, use `?normalize_count_matrix` or the relevant function name.
 [Report an issue](https://github.com/SamellaSalles/MettleRNASeq/issues) with a
 small example and `sessionInfo()`. Use `citation("MettleRNASeq")` to cite the package.
 [Method and research examples](https://doi.org/10.1101/2025.05.06.652387) ·
-[Example data source](inst/extdata/PROVENANCE.txt) · [GPL-2.0-or-later](COPYING).
+[Example data and processing](inst/extdata/PROVENANCE.md) · [GPL-2.0-or-later](COPYING).
 
 ## Author and acknowledgements
 
