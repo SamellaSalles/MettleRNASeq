@@ -28,11 +28,12 @@ library(MettleRNASeq)
 
 ```r
 source(system.file("examples", "run_example.R", package = "MettleRNASeq"))
-result <- run_mettle_example("mestrado", output_dir = "example_results")
+result <- run_mettle_example("bone", output_dir = "example_results")
 ```
 
-The example uses bundled, normalized data and saves tables, plots and results
-in `example_results`.
+The example includes a normalized [expression matrix](inst/extdata/bone_expression.csv)
+and [sample metadata](inst/extdata/bone_metadata.csv). It saves tables, plots
+and results in `example_results`.
 
 ## Use your data
 
@@ -51,14 +52,13 @@ For function help, use `?normalize_count_matrix` or the relevant function name.
 
 [Report an issue](https://github.com/SamellaSalles/MettleRNASeq/issues) with a
 small example and `sessionInfo()`. Use `citation("MettleRNASeq")` to cite the package.
-[Method preprint](https://doi.org/10.1101/2025.05.06.652387) ·
+[Method and research examples](https://doi.org/10.1101/2025.05.06.652387) ·
 [Example data source](inst/extdata/PROVENANCE.txt) · [GPL-2.0-or-later](COPYING).
 
 ## Author and acknowledgements
 
 **Author and maintainer:** Samella Salles.
 
-Otávio Brustolini, Luciane Ciapina and Kary Ocaña supervised the master's research
-underlying the package.
+Otávio Brustolini, Luciane Ciapina and Kary Ocaña provided research supervision.
 
 Historical support from LNCC and CAPES, and discussions with Rebecca Salles, are acknowledged.

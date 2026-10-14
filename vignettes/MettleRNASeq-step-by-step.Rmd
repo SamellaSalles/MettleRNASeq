@@ -6,7 +6,7 @@ output:
     toc: true
     number_sections: true
 vignette: >
-  %\VignetteIndexEntry{MettleRNASeq: step-by-step manual}
+  %\VignetteIndexEntry{MettleRNASeq: step-by-step manual and function reference}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -51,9 +51,9 @@ follow the matrix row order. Read alignment and counting happen upstream.
 ```{r load}
 library(MettleRNASeq)
 packageVersion("MettleRNASeq")
-expression <- read.csv(system.file("extdata", "mestrado_bone_expression.csv",
+expression <- read.csv(system.file("extdata", "bone_expression.csv",
   package = "MettleRNASeq"), row.names = 1, check.names = FALSE)
-metadata <- read.csv(system.file("extdata", "mestrado_bone_metadata.csv",
+metadata <- read.csv(system.file("extdata", "bone_metadata.csv",
   package = "MettleRNASeq"), stringsAsFactors = FALSE)
 stopifnot(identical(rownames(expression), metadata$Sample))
 dim(expression)
@@ -61,14 +61,16 @@ metadata
 expression[1:3, 1:4]
 ```
 
-The example has eight samples, four FLASH and four STANDARD, and 235 genes
-from the bundled bone dataset. Values were reshaped from `B4.csv` without numerical
-changes. They are **already normalized and preselected**; do not normalize
-this matrix again or treat it as raw counts. The source study is Velalopoulou
-et al. (2021), doi:10.1158/0008-5472.CAN-21-1500, GEO GSE173944.
-Provenance is documented in `inst/extdata/PROVENANCE.txt`.
+The bundled bone example has eight samples, four FLASH and four STANDARD,
+and 235 genes. Its values are **already normalized and preselected**; skip
+normalization for this matrix. The package includes `bone_expression.csv`
+and `bone_metadata.csv` in `inst/extdata`, loaded by the code above.
+The source data are from [GEO GSE173944](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE173944)
+and [Velalopoulou et al. (2021)](https://doi.org/10.1158/0008-5472.CAN-21-1500).
+Processing details are in `inst/extdata/PROVENANCE.txt`.
 
-For your own files, use the following pattern and align metadata explicitly.
+For your own files, use an expression CSV with sample names in its first column
+and a metadata CSV with `Sample` and `Condition` columns. Align metadata explicitly.
 Transpose a gene-by-sample matrix first with `as.data.frame(t(expression))`.
 
 ```{r own-data, eval=FALSE}
@@ -94,7 +96,7 @@ Normalization does not convert processed expression back into raw counts.
 | `group_size` | Minimum number of samples reaching `min_count`; default 4. This counts samples, not conditions. |
 | `remove_low_variance` | `TRUE` removes zero-variance genes; it does not apply a general low-variance threshold. |
 
-To demonstrate normalization without renormalizing the bundled example, generate
+To demonstrate normalization using synthetic raw counts, generate
 synthetic raw counts. Do not mix their outputs with the real example.
 
 ```{r normalize}
@@ -224,7 +226,7 @@ The bundled matrix is already preselected. This step demonstrates how PCA
 selection works. For your own data, apply it to the full normalized matrix.
 For example, to select 100 genes from each of four components:
 
-```{r original-pca-settings, eval=FALSE}
+```{r additional-pca-settings, eval=FALSE}
 # full_normalized must come from your full normalized matrix, not the reduced example.
 full_pca <- pca_analysis(full_normalized, plot_2d = FALSE)
 refined_matrix <- feature_selection_pca(full_pca$pca_result, full_normalized,
@@ -710,5 +712,5 @@ for (name in functions) {
 ```
 
 Save input data, metadata, parameters, seed, package version and `sessionInfo()`
-with your results. For the method's research context, see the preprint,
-doi:10.1101/2025.05.06.652387.
+with your results. For the method and research examples,
+see the [preprint](https://doi.org/10.1101/2025.05.06.652387).

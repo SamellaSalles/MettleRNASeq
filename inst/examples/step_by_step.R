@@ -7,9 +7,9 @@
 # Stage: load
 library(MettleRNASeq)
 packageVersion("MettleRNASeq")
-expression <- read.csv(system.file("extdata", "mestrado_bone_expression.csv",
+expression <- read.csv(system.file("extdata", "bone_expression.csv",
   package = "MettleRNASeq"), row.names = 1, check.names = FALSE)
-metadata <- read.csv(system.file("extdata", "mestrado_bone_metadata.csv",
+metadata <- read.csv(system.file("extdata", "bone_metadata.csv",
   package = "MettleRNASeq"), stringsAsFactors = FALSE)
 stopifnot(identical(rownames(expression), metadata$Sample))
 dim(expression)

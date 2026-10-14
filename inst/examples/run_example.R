@@ -1,6 +1,6 @@
 # Run from R with source(system.file("examples", "run_example.R", package = "MettleRNASeq"))
-# Or: Rscript run_example.R output-directory mestrado
-run_mettle_example <- function(dataset = c("mestrado", "synthetic"), output_dir = NULL,
+# Or: Rscript run_example.R output-directory bone
+run_mettle_example <- function(dataset = c("bone", "synthetic"), output_dir = NULL,
                                num_resamples = 3L, plot = TRUE) {
   dataset <- match.arg(dataset)
   if (!requireNamespace("MettleRNASeq", quietly = TRUE)) stop("Install MettleRNASeq first.")
@@ -13,9 +13,9 @@ run_mettle_example <- function(dataset = c("mestrado", "synthetic"), output_dir 
     }
   }
   set.seed(123)
-  if (dataset == "mestrado") {
-    expression_file <- system.file("extdata", "mestrado_bone_expression.csv", package = "MettleRNASeq")
-    metadata_file <- system.file("extdata", "mestrado_bone_metadata.csv", package = "MettleRNASeq")
+  if (dataset == "bone") {
+    expression_file <- system.file("extdata", "bone_expression.csv", package = "MettleRNASeq")
+    metadata_file <- system.file("extdata", "bone_metadata.csv", package = "MettleRNASeq")
     if (!nzchar(expression_file) || !nzchar(metadata_file)) stop("Example data missing; reinstall the documented version.")
     expression <- read.csv(expression_file, row.names = 1, check.names = FALSE)
     metadata <- read.csv(metadata_file, stringsAsFactors = FALSE)
@@ -98,6 +98,6 @@ run_mettle_example <- function(dataset = c("mestrado", "synthetic"), output_dir 
 if (sys.nframe() == 0L) {
   arguments <- commandArgs(trailingOnly = TRUE)
   directory <- if (length(arguments)) arguments[1] else "MettleRNASeq_example"
-  dataset <- if (length(arguments) >= 2L) arguments[2] else "mestrado"
+  dataset <- if (length(arguments) >= 2L) arguments[2] else "bone"
   run_mettle_example(dataset, output_dir = directory)
 }

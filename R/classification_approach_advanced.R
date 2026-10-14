@@ -167,7 +167,7 @@ classification_approach_advanced <- function(input_data, algorithms, hyper_param
           if (length(accuracy) != 1L || !is.finite(accuracy)) stop("Could not identify one finite training accuracy for bestTune.")
           per_test <- vapply(test_cols, function(test_col) {
             # Evaluate each held-out replicate separately, repeating its values as
-            # in the dissertation's original leave-one-replicate-out procedure.
+            # in the default leave-one-replicate-out procedure.
             testing <- as.data.frame(matrix(rep(subset[[test_col]], length(train_cols)), ncol = length(train_cols)))
             names(testing) <- train_cols
             if (use_gene) testing <- cbind(Gene = as.character(subset$Gene), testing)
