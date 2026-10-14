@@ -21,6 +21,24 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 8,
 Run the blocks in order in one R session, or use `inst/examples/step_by_step.R`.
 Each stage creates the input for the next. Optional blocks show alternatives.
 
+For a complete real-data example that keeps the supplied 235 preselected genes:
+
+```{r real-data-example, eval=FALSE}
+source(system.file("examples", "run_example.R", package = "MettleRNASeq"))
+result <- run_mettle_example("bone", output_dir = "bone_results",
+  search_mode = "expanded", num_resamples = 100)
+result$diagnostics$coverage_table
+result$selected$selected_gene_ids
+```
+
+This mode skips repeated normalization and PCA selection, uses automatic RF
+tuning, and selects the union of all sets tied at the maximum median test
+score. It saves scores, sampled genes, coverage, selected expression,
+correlations, association rules and plots. The relative selection is
+exploratory; the maximum is not a significance threshold or independent
+validation. Increase `num_resamples` for a larger search and record its value.
+The blocks below deliberately use a reduced search to teach individual functions.
+
 The workflow is: normalization → sample distances → PCA
 → PCA gene selection → input preparation → classification with gene resampling
 → classification-based selection → ACC → ICC → ICC differences → rules for
@@ -342,7 +360,7 @@ some candidate genes may never be sampled. Inspect this before interpreting
 selection or increasing the search size.
 
 ```{r resampling-diagnostics}
-diagnostics <- summarize_gene_resampling(classification, cutoff = .85)
+diagnostics <- summarize_gene_resampling(classification)
 diagnostics$coverage_table
 head(diagnostics$gene_table)
 ```
@@ -368,7 +386,7 @@ For a larger search with automatic tuning and reduced memory use:
 larger <- classification_approach_advanced(input, algorithms = "rf",
   hyper_params = NULL, tune_length = 10, num_resamples = 100,
   num_genes = 10, seed = 123, store_models = FALSE)
-coverage <- summarize_gene_resampling(larger, cutoff = .85)
+coverage <- summarize_gene_resampling(larger)
 coverage$coverage_table
 ```
 
@@ -420,16 +438,24 @@ selected_expression <- selection$filtered_matrix
 dim(selected_expression)
 ```
 
-To select resamples by a score threshold and retain genes present in all
-selected resamples, use:
+To use a study-specific score threshold and retain genes present in all
+selected sets, use the following alternative. The value 0.70 illustrates the
+argument; it is not a recommended universal threshold. Define your criterion
+before assessing discovery performance and handle an empty result explicitly.
 
 ```{r selection-options, eval=FALSE}
+score_cutoff <- .70
+qualifying <- scores$resample[scores$summary_test_accuracy >= score_cutoff]
+if (length(qualifying)) {
 threshold_selection <- genes_from_classification_results(classification$eval_table,
-  classification$genes_table, refined, cutoff = .85,
+  classification$genes_table, refined, cutoff = score_cutoff,
   metric_column = "summary_test_accuracy", selection_mode = "intersect",
   algorithm = "rf", gene_ids_table = classification$gene_ids_table,
   partition_table = classification$partition_table,
-  plot_type = "both", hline_yintercept = .85)
+  plot_type = "both", hline_yintercept = score_cutoff)
+} else {
+  message("No gene sets meet the chosen cutoff.")
+}
 ```
 
 To continue with that choice, assign `selected_expression <- threshold_selection$filtered_matrix`.

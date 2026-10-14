@@ -1,8 +1,12 @@
 # Run from R with source(system.file("examples", "run_example.R", package = "MettleRNASeq"))
 # Or: Rscript run_example.R output-directory bone
 run_mettle_example <- function(dataset = c("bone", "synthetic"), output_dir = NULL,
-                               num_resamples = 3L, plot = TRUE) {
+                               num_resamples = NULL, plot = TRUE,
+                               search_mode = c("quick", "expanded")) {
   dataset <- match.arg(dataset)
+  search_mode <- match.arg(search_mode)
+  if (search_mode == "expanded" && dataset != "bone") stop("The expanded example uses the processed bone dataset.")
+  if (is.null(num_resamples)) num_resamples <- if (search_mode == "expanded") 100L else 3L
   if (!requireNamespace("MettleRNASeq", quietly = TRUE)) stop("Install MettleRNASeq first.")
   if (!requireNamespace("randomForest", quietly = TRUE)) stop("Install randomForest for this example.")
   if (!is.null(output_dir)) {
@@ -34,22 +38,31 @@ run_mettle_example <- function(dataset = c("bone", "synthetic"), output_dir = NU
   distance <- MettleRNASeq::compute_distance_matrix(normalized, plot_heatmap = plot)
   pca <- MettleRNASeq::pca_analysis(normalized, design_matrix = metadata,
     color_by = "Condition", plot_2d = plot)
-  features <- MettleRNASeq::feature_selection_pca(pca$pca_result, normalized,
-    num_pcs = 2, num_genes_per_pc = 12)
+  if (search_mode == "expanded") {
+    # The supplied 235 genes are already PCA-selected. Keep that candidate universe.
+    features <- list(selected_genes = colnames(normalized), selected_count_matrix = normalized)
+  } else {
+    features <- MettleRNASeq::feature_selection_pca(pca$pca_result, normalized,
+      num_pcs = 2, num_genes_per_pc = 12)
+  }
   input <- MettleRNASeq::prepare_input_matrix(features$selected_count_matrix,
     sample_vector = metadata$Sample, condition_vector = metadata$Condition)
   classification <- MettleRNASeq::classification_approach_advanced(input,
-    algorithms = "rf", hyper_params = list(rf = data.frame(mtry = c(1, 3))),
-    num_resamples = num_resamples, num_genes = 10, seed = 123)
+    algorithms = "rf", hyper_params = if (search_mode == "expanded") NULL else list(rf = data.frame(mtry = c(1, 3))),
+    num_resamples = num_resamples, num_genes = 10, seed = 123,
+    tune_length = 10, store_models = search_mode != "expanded")
   scores <- unique(classification$eval_table[, c("algorithm", "resample", "summary_test_accuracy")])
   stopifnot(all(is.finite(scores$summary_test_accuracy)))
-  best_resample <- scores$resample[which.max(scores$summary_test_accuracy)]
-  # Pick one resample to keep the relationship plots small. This is not a significance test.
+  best_resample <- if (search_mode == "expanded") {
+    scores$resample[scores$summary_test_accuracy == max(scores$summary_test_accuracy)]
+  } else scores$resample[which.max(scores$summary_test_accuracy)]
+  # Retain all maximum-score ties in expanded mode. This is exploratory selection.
   selected <- MettleRNASeq::genes_from_classification_results(classification$eval_table,
     classification$genes_table, features$selected_count_matrix, resamples = best_resample,
     partition_table = classification$partition_table, plot_type = "both",
     plot_resamples_only = FALSE, return_plot = plot)
   selected_matrix <- selected$filtered_matrix
+  diagnostics <- MettleRNASeq::summarize_gene_resampling(classification)
   levels <- unique(metadata$Condition)
   n_first <- sum(metadata$Condition == levels[1])
   stopifnot(identical(metadata$Condition, rep(levels, each = n_first)))
@@ -69,7 +82,8 @@ run_mettle_example <- function(dataset = c("bone", "synthetic"), output_dir = NU
   summary <- data.frame(dataset = dataset, input_samples = nrow(expression),
     input_genes = ncol(expression), pca_genes = length(features$selected_genes),
     resamples = num_resamples, partitions = nrow(classification$partition_table),
-    selected_resample = best_resample, selected_genes = length(selected$selected_gene_ids),
+    selected_resample = if (search_mode == "expanded") paste(best_resample, collapse = ",") else best_resample,
+    selected_genes = length(selected$selected_gene_ids),
     rules_condition1 = length(first$rules), rules_condition2 = length(second$rules),
     shared_gene_rules = nrow(rules$shared_rules))
   if (!is.null(output_dir)) {
@@ -79,6 +93,9 @@ run_mettle_example <- function(dataset = c("bone", "synthetic"), output_dir = NU
     export(classification$sample_map, "replicate_map"); export(classification$status_table, "fit_status")
     export(classification$gene_ids_table, "resampled_gene_ids")
     export(classification$test_eval_table, "heldout_replicate_accuracy")
+    export(scores, "resample_scores"); export(diagnostics$coverage_table, "search_coverage")
+    export(diagnostics$gene_table, "gene_sampling")
+    utils::write.csv(selected_matrix, file.path(output_dir, "selected_expression.csv"))
     export(data.frame(Gene = selected$selected_gene_ids), "selected_genes")
     export(acc_table, "across_condition_correlations"); export(difference$difference_table, "correlation_differences")
     export(first$rules_df, "rules_condition1"); export(second$rules_df, "rules_condition2")
@@ -87,12 +104,15 @@ run_mettle_example <- function(dataset = c("bone", "synthetic"), output_dir = NU
     saveRDS(list(summary = summary, classification = classification$eval_table,
       gene_ids = classification$gene_ids_table, sample_map = classification$sample_map,
       selected_gene_ids = selected$selected_gene_ids, selected_matrix = selected_matrix,
-      icc = icc, rules = list(first = first$rules, second = second$rules)),
+      icc = icc, full_classification = classification, diagnostics = diagnostics,
+      settings = list(search_mode = search_mode,
+        selection = if (search_mode == "expanded") "all maximum-score ties" else "first maximum-score set"),
+      rules = list(first = first$rules, second = second$rules)),
       file.path(output_dir, "example_results.rds"))
   }
   print(summary)
   invisible(list(summary = summary, classification = classification,
-    selected = selected, pca = pca, distance = distance, rules = rules))
+    selected = selected, diagnostics = diagnostics, pca = pca, distance = distance, rules = rules))
 }
 
 if (sys.nframe() == 0L) {

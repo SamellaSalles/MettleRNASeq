@@ -69,7 +69,7 @@ classification$status_table
 head(classification$gene_ids_table)
 
 # Stage: resampling-diagnostics
-diagnostics <- summarize_gene_resampling(classification, cutoff = .85)
+diagnostics <- summarize_gene_resampling(classification)
 diagnostics$coverage_table
 head(diagnostics$gene_table)
 
