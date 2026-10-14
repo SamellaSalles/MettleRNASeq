@@ -8,12 +8,13 @@ citEntry(
   ),
   year = "2026",
   note = "R package version 1.1.0",
-  url = "https://github.com/SamellaSalles/MettleRNASeq",
+  doi = "10.5281/zenodo.23369257",
+  url = "https://doi.org/10.5281/zenodo.23369257",
   textVersion =
     paste(
       "Salles S. (2026).",
       "MettleRNASeq: Machine-Learning-Assisted Analysis of Complex RNA-Seq Datasets.",
       "R package version 1.1.0.",
-      "https://github.com/SamellaSalles/MettleRNASeq"
+      "https://doi.org/10.5281/zenodo.23369257"
     )
 )

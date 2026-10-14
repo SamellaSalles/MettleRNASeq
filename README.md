@@ -2,6 +2,8 @@
 
 # MettleRNASeq
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23369257.svg)](https://doi.org/10.5281/zenodo.23369257)
+
 MettleRNASeq is an R package for exploring **RNA-seq data with small sample
 sizes, high variability and complex biological conditions**. It helps prioritize
 candidate genes and gene sets for follow-up analysis and explore how gene
