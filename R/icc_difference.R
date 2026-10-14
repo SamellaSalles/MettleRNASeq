@@ -12,6 +12,7 @@
 #' @param show_colnames Logical indicating whether to show column names in heatmap (default: TRUE)
 #' @param cluster_rows Logical indicating whether to cluster rows (default: TRUE)
 #' @param cluster_cols Logical indicating whether to cluster columns (default: TRUE)
+#' @param unique_pairs Return each undirected pair once, without self-pairs (default TRUE). FALSE preserves the legacy full table.
 #' @param fontsize Base fontsize for heatmap (default: 8)
 #'
 #' @return A list containing:
@@ -42,7 +43,7 @@ icc_difference <- function(icc_result,
                            show_colnames = TRUE,
                            cluster_rows = TRUE,
                            cluster_cols = TRUE,
-                           fontsize = 8) {
+                           fontsize = 8, unique_pairs = TRUE) {
   
   # Validate input
   if (!all(c("correlation_matrix_cond1", "correlation_matrix_cond2") %in% names(icc_result))) {
@@ -52,9 +53,18 @@ icc_difference <- function(icc_result,
   corr1 <- icc_result$correlation_matrix_cond1
   corr2 <- icc_result$correlation_matrix_cond2
   
-  if (!identical(dim(corr1), dim(corr2)) || !identical(rownames(corr1), rownames(corr2))) {
-    stop("Correlation matrices must have identical dimensions and gene names")
+  for (mat in list(corr1, corr2)) {
+    if (!is.matrix(mat) || !is.numeric(mat) || nrow(mat) != ncol(mat) || !nrow(mat)) stop("Correlation matrices must be numeric and square.")
+    .mettle_names(rownames(mat), "Correlation row names")
+    .mettle_names(colnames(mat), "Correlation column names")
+    if (!setequal(rownames(mat), colnames(mat))) stop("Correlation axes must contain the same genes.")
   }
+  genes <- rownames(corr1)
+  if (!setequal(genes, rownames(corr2))) stop("Correlation matrices must contain the same genes.")
+  corr1 <- corr1[genes, genes, drop = FALSE]
+  corr2 <- corr2[genes, genes, drop = FALSE]
+  if (!is.logical(unique_pairs) || length(unique_pairs) != 1L || is.na(unique_pairs)) stop("unique_pairs must be TRUE or FALSE.")
+  if (!is.null(cutoff) && (length(cutoff) != 1L || !is.numeric(cutoff) || !is.finite(cutoff) || cutoff < 0 || cutoff > 2)) stop("cutoff must be between 0 and 2.")
   
   # Compute absolute differences
   abs_diff <- abs(corr1 - corr2)
@@ -68,6 +78,7 @@ icc_difference <- function(icc_result,
     indices <- which(!is.na(abs_diff), arr.ind = TRUE)
   }
   
+  if (unique_pairs && nrow(indices)) indices <- indices[indices[, 1] < indices[, 2], , drop = FALSE]
   # Create difference table
   diff_table <- data.frame(
     Gene1 = rownames(abs_diff)[indices[, 1]],
@@ -90,6 +101,10 @@ icc_difference <- function(icc_result,
       plot_mat[abs_diff < cutoff] <- NA
     }
     
+    # Compute clustering from the complete differences, before masking by cutoff.
+    if (anyNA(abs_diff) && (isTRUE(cluster_rows) || isTRUE(cluster_cols))) stop("Disable clustering when correlations contain NA.")
+    row_tree <- if (isTRUE(cluster_rows) && nrow(abs_diff) > 1L) stats::hclust(stats::dist(abs_diff)) else FALSE
+    col_tree <- if (isTRUE(cluster_cols) && ncol(abs_diff) > 1L) stats::hclust(stats::dist(t(abs_diff))) else FALSE
     heatmap_obj <- pheatmap::pheatmap(
       mat = plot_mat,
       color = heatmap_colors(length(heatmap_breaks) - 1),
@@ -97,8 +112,8 @@ icc_difference <- function(icc_result,
       na_col = "white",
       show_rownames = show_rownames,
       show_colnames = show_colnames,
-      cluster_rows = cluster_rows,
-      cluster_cols = cluster_cols,
+      cluster_rows = row_tree,
+      cluster_cols = col_tree,
       fontsize = fontsize,
       silent = TRUE
     )

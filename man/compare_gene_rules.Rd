@@ -9,7 +9,8 @@ compare_gene_rules(
   rules_df2,
   condition_names = c("Condition1", "Condition2"),
   plot = TRUE,
-  layout_type = "linear"
+  layout_type = "linear",
+  comparison = c("genes", "items")
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ compare_gene_rules(
 \item{plot}{Logical; if \code{TRUE}, plots the shared and unique rule graphs. Default is \code{TRUE}.}
 
 \item{layout_type}{A character string indicating the layout for plotting. Use \code{"linear"} for arc diagrams (default) or \code{"fr"} for Fruchterman-Reingold force-directed layout.}
+
+\item{comparison}{Compare complete gene sets (genes, default, as in the original relationship-focused approach), or complete expression-state itemsets (items). Metrics do not define rule identity. Original rule tables and gene-projection graphs are also returned.}
 }
 \value{
 A list with the following components:

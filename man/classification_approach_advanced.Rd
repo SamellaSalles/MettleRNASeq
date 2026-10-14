@@ -15,7 +15,9 @@ classification_approach_advanced(
   summary_stat = "median",
   replace_genes = TRUE,
   parallel = FALSE,
-  seed = 123
+  seed = 123,
+  include_gene = TRUE,
+  error_handling = c("stop", "continue")
 )
 }
 \arguments{
@@ -42,6 +44,10 @@ the hyperparameters specific to the corresponding algorithm. See details below.}
 \item{parallel}{Logical; whether to allow parallel execution during model training (if supported by the algorithm).}
 
 \item{seed}{Integer; random seed for reproducibility.}
+
+\item{include_gene}{Include gene identity as a predictor (TRUE preserves the original approach).}
+
+\item{error_handling}{Stop at a failed fit (default), or continue with explicit failure records and NA summaries.}
 }
 \value{
 A list with the following components:
@@ -71,6 +77,8 @@ hyper_params <- list(
                       min.node.size = c(2, 3))
 )
 }
+
+Each held-out replicate is evaluated separately by repeating its expression values across the training replicate columns. Partition accuracy is the mean of these replicate accuracies. No internal gene holdout is introduced. Gene identity remains a predictor by default; a constant identifier is omitted. Additional outputs are gene_ids_table, status_table, test_eval_table, sample_map and summary_stat.
 
 Output metrics include training and test accuracy per split and per resample, with summaries per resample.
 }

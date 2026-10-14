@@ -31,7 +31,7 @@
 #' }
 #'
 #' @details
-#' The function automatically installs required packages if they are not already installed. The `lift` filter 
+#' Required packages must be installed before calling this function. The `lift` filter
 #' is applied after computing the `lift` measure explicitly to ensure compatibility across methods.
 #'
 #' For `"fpgrowth"`, rules are mined using the `fim4r()` function from the `arules` package.
@@ -48,9 +48,9 @@
 #' result <- mine_gene_associations(data, 1:4, plot_type = "graph", interactive = TRUE, top_n = 10, target_genes = "Gene_1", search_type = "lhs")
 #'}
 #'
-#' @import arules
+#' @importFrom arules apriori fim4r quality is.redundant DATAFRAME
 #' @import arulesViz
-#' @importFrom utils install.packages
+#' @importFrom utils head
 #' @export
 mine_gene_associations <- function(data, 
                                    condition_rows,
@@ -72,39 +72,42 @@ mine_gene_associations <- function(data,
                                    rhs_max = 50) {
   
   # Ensure required packages are installed and loaded
-  required_pkgs <- c("arules", "arulesViz")
-  for (pkg in required_pkgs) {
-    if (!requireNamespace(pkg, quietly = TRUE)) install.packages(pkg)
-  }
-  suppressPackageStartupMessages({
-    library(arules)
-    library(arulesViz)
-  })
+  if (!requireNamespace("arules", quietly = TRUE)) stop("Install arules before mining rules.")
+  if (!requireNamespace("arulesViz", quietly = TRUE)) stop("Install arulesViz before mining rules.")
   
   # Validate inputs
   method <- match.arg(method)
   plot_type <- match.arg(plot_type)
   search_type <- match.arg(search_type)
+  if (method == "fpgrowth" && !requireNamespace("fim4r", quietly = TRUE)) {
+    stop("Install the optional fim4r package before using method = 'fpgrowth'.")
+  }
   
   if (interactive && plot_type == "scatter") {
-    if (!requireNamespace("plotly", quietly = TRUE)) install.packages("plotly")
+    if (!requireNamespace("plotly", quietly = TRUE)) stop("Install plotly to use this plot.")
   }
   if (interactive && plot_type == "graph") {
-    if (!requireNamespace("htmlwidgets", quietly = TRUE)) install.packages("htmlwidgets")
+    if (!requireNamespace("htmlwidgets", quietly = TRUE)) stop("Install htmlwidgets to use this plot.")
   }
   if (!interactive && plot_type == "graph") {
-    if (!requireNamespace("igraph", quietly = TRUE)) install.packages("igraph")
+    if (!requireNamespace("igraph", quietly = TRUE)) stop("Install igraph to use this plot.")
   }
   
   
-  if (length(condition_rows) == 0) stop("condition_rows must specify at least one row")
+  if (!is.numeric(condition_rows) || !length(condition_rows) || anyNA(condition_rows) ||
+      any(!is.finite(condition_rows)) || any(condition_rows != floor(condition_rows)) ||
+      any(condition_rows < 1 | condition_rows > nrow(data)) || anyDuplicated(condition_rows)) stop("condition_rows must contain unique valid row indices.")
+  top_n <- .mettle_integer(top_n, "top_n")
+  minlen <- .mettle_integer(minlen, "minlen"); maxlen <- .mettle_integer(maxlen, "maxlen")
+  if (minlen > maxlen) stop("minlen cannot exceed maxlen.")
+  for (value in list(supp, conf)) if (!is.numeric(value) || length(value) != 1L || !is.finite(value) || value <= 0 || value > 1) stop("supp and conf must be in (0, 1].")
   
   # Prepare data
   data <- as.data.frame(data)
   if (is.null(colnames(data))) colnames(data) <- paste0("Gene_", 1:ncol(data))
   
-  cond_data <- data[condition_rows, ]
-  transactions <- as(cond_data, "transactions")
+  cond_data <- data[condition_rows, , drop = FALSE]
+  transactions <- methods::as(cond_data, "transactions")
   
   # Mine rules
   cat("Mining association rules using", method, "...\n")
@@ -117,8 +120,8 @@ mine_gene_associations <- function(data,
     rules <- fim4r(transactions, 
                    method = "fpgrowth", 
                    target = "rules", 
-                   supp = supp, 
-                   conf = conf, 
+                   support = supp,
+                   confidence = conf,
                    zmin = minlen, 
                    zmax = maxlen)
   }
@@ -131,11 +134,12 @@ mine_gene_associations <- function(data,
   
   # Focus on specific genes if requested
   if (!is.null(target_genes)) {
-    target_items <- paste(target_genes, collapse = "|")
-    rules <- switch(search_type,
-                    "both" = subset(rules, lhs %pin% target_items | rhs %pin% target_items),
-                    "lhs"  = subset(rules, lhs %pin% target_items),
-                    "rhs"  = subset(rules, rhs %pin% target_items))
+    if (anyNA(target_genes) || any(!nzchar(target_genes))) stop("target_genes must contain non-empty gene names.")
+    matches <- function(side) vapply(methods::as(side, "list"), function(items) {
+      any(sub("=.*$", "", items) %in% target_genes)
+    }, logical(1))
+    left <- matches(arules::lhs(rules)); right <- matches(arules::rhs(rules))
+    rules <- rules[switch(search_type, both = left | right, lhs = left, rhs = right)]
   }
   
   # Remove redundant rules
@@ -152,20 +156,20 @@ mine_gene_associations <- function(data,
              
              "scatter" = {
                engine <- if (interactive) "plotly" else "ggplot2"
-               plot(plot_rules, method = "scatter", engine = engine, max = top_n)
+               graphics::plot(plot_rules, method = "scatter", engine = engine)
              },
              
              "graph" = {
                engine <- if (interactive) "htmlwidget" else "igraph"
-               plot(plot_rules, method = "graph", engine = engine, max = top_n)
+               graphics::plot(plot_rules, method = "graph", engine = engine)
              },
              
              "paracoord" = {
-               plot(plot_rules, method = "paracoord", max = top_n)
+               graphics::plot(plot_rules, method = "paracoord")
              },
              
              "grouped" = {
-               plot(plot_rules, 
+               graphics::plot(plot_rules,
                     method = "grouped", 
                     measure = measure,
                     shading = shading,

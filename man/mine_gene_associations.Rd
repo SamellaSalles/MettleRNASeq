@@ -76,7 +76,7 @@ This function performs association rule mining on gene expression data using eit
 It provides filtering options (support, confidence, lift, rule length) and multiple visualization styles.
 }
 \details{
-The function automatically installs required packages if they are not already installed. The \code{lift} filter
+Required packages must be installed before calling this function. The \code{lift} filter
 is applied after computing the \code{lift} measure explicitly to ensure compatibility across methods.
 
 For \code{"fpgrowth"}, rules are mined using the \code{fim4r()} function from the \code{arules} package.

@@ -61,6 +61,8 @@ feature_selection_pca <- function(pca_result, count_matrix, num_pcs = 3, num_gen
     stop("Error: pca_result must be the result of the prcomp function.")
   }
   
+  num_pcs <- .mettle_integer(num_pcs, "num_pcs")
+  num_genes_per_pc <- .mettle_integer(num_genes_per_pc, "num_genes_per_pc")
   # Ensure num_pcs and num_genes_per_pc are valid
   if (num_pcs > ncol(pca_result$rotation)) {
     stop("Error: num_pcs cannot be greater than the number of PCs in pca_result.")
@@ -71,13 +73,14 @@ feature_selection_pca <- function(pca_result, count_matrix, num_pcs = 3, num_gen
   
   # Check if count_matrix needs to be transposed
   # If the number of rows in count_matrix matches the number of genes in pca_result, assume genes are rows
-  if (nrow(count_matrix) == nrow(pca_result$rotation)) {
-    count_matrix <- t(count_matrix)  # Transpose to make samples rows and genes columns
-  } else if (ncol(count_matrix) == nrow(pca_result$rotation)) {
-    # Already in the correct orientation (samples as rows, genes as columns)
-  } else {
-    stop("Error: count_matrix dimensions do not match the PCA result. Ensure samples are rows and genes are columns.")
-  }
+  gene_ids <- rownames(pca_result$rotation)
+  .mettle_names(gene_ids, "PCA gene names")
+  in_cols <- !is.null(colnames(count_matrix)) && setequal(colnames(count_matrix), gene_ids)
+  in_rows <- !is.null(rownames(count_matrix)) && setequal(rownames(count_matrix), gene_ids)
+  if (in_cols && in_rows) stop("Ambiguous gene orientation in count_matrix.")
+  if (!in_cols && !in_rows) stop("Gene names in count_matrix must match the PCA loadings.")
+  if (in_rows) count_matrix <- as.data.frame(t(count_matrix))
+  .mettle_numeric_matrix(count_matrix, "count_matrix")
   
   # Extract the rotation matrix (loadings) from the PCA result
   rotation_matrix <- pca_result$rotation

@@ -18,6 +18,8 @@
 #' @param parallel Logical; whether to allow parallel execution during model training (if supported by the algorithm).
 #' @param seed Integer; random seed for reproducibility.
 #'
+#' @param include_gene Include gene identity as a predictor (TRUE preserves the original approach).
+#' @param error_handling Stop at a failed fit (default), or continue with explicit failure records and NA summaries.
 #' @details
 #' Genes are sampled only from the first condition, then matched across all conditions. For each resample, 
 #' the function uses all possible combinations of train/test replicate splits based on the given training percentage.
@@ -32,6 +34,8 @@
 #'                       min.node.size = c(2, 3))
 #' )
 #' }
+#'
+#' Each held-out replicate is evaluated separately by repeating its expression values across the training replicate columns. Partition accuracy is the mean of these replicate accuracies. No internal gene holdout is introduced. Gene identity remains a predictor by default; a constant identifier is omitted. Additional outputs are gene_ids_table, status_table, test_eval_table, sample_map and summary_stat.
 #'
 #' Output metrics include training and test accuracy per split and per resample, with summaries per resample.
 #'
@@ -68,177 +72,144 @@
 #' @export
 classification_approach_advanced <- function(input_data, algorithms, hyper_params, num_resamples, num_genes,
                                              train_percentage = 0.75, metrics = "Accuracy", summary_stat = "median",
-                                             replace_genes = TRUE, parallel=FALSE, seed=123) {
-  
-  library(caret)
-  library(dplyr)
-  library(e1071)
-  library(pROC)
-  
-  # Ensure input columns
-  if (!all(c("Gene", "Condition") %in% colnames(input_data))) {
-    stop("Input data must have 'Gene' and 'Condition' columns.")
+                                             replace_genes = TRUE, parallel = FALSE, seed = 123,
+                                             include_gene = TRUE, error_handling = c("stop", "continue")) {
+  error_handling <- match.arg(error_handling)
+  summary_stat <- match.arg(summary_stat, c("median", "mean"))
+  num_resamples <- .mettle_integer(num_resamples, "num_resamples")
+  num_genes <- .mettle_integer(num_genes, "num_genes")
+  seed <- .mettle_integer(seed, "seed", 0L)
+  if (!identical(metrics, "Accuracy")) stop("Only metrics = 'Accuracy' is supported.")
+  for (flag in list(replace_genes, parallel, include_gene)) {
+    if (!is.logical(flag) || length(flag) != 1L || is.na(flag)) stop("Logical flags must be TRUE or FALSE.")
   }
-  
-  # Detect replicate columns dynamically
-  replicate_cols <- setdiff(colnames(input_data), c("Gene", "Condition"))
-  num_replicates <- length(replicate_cols)
-  num_conditions <- length(unique(input_data$Condition))
-  genes_per_condition <- nrow(input_data) / num_conditions
-  
-  # Generate train/test splits (fixed partitions)
-  train_test_splits <- combn(1:num_replicates, round(train_percentage * num_replicates), simplify = FALSE)
-  train_test_splits <- lapply(train_test_splits, function(train_indices) {
-    list(
-      train_replicates = train_indices,
-      test_replicates = setdiff(1:num_replicates, train_indices)
-    )
-  })
-  
-  # Initialize results
-  eval_table <- data.frame()
-  partition_table <- data.frame()
-  genes_table <- list()  # Now we store genes in a list for each resample
-  models <- list()
-  
-  # Create resamples
-  set.seed(seed)
-  resample_indices <- lapply(1:num_resamples, function(b) {
-    selected_genes <- sample(1:genes_per_condition, num_genes, replace = replace_genes)
-    gene_indices <- unlist(lapply(0:(num_conditions - 1), function(i) {
-      selected_genes + i * genes_per_condition
-    }))
-    list(gene_indices = gene_indices, train_test_splits = train_test_splits)
-  })
-  names(resample_indices) <- paste0("Bootstrap", 1:num_resamples)
-  
-  # Build genes_table as a clean data frame
-  genes_table <- as.data.frame(do.call(cbind, lapply(resample_indices, function(x) x$gene_indices)))[1:num_genes,]
-  colnames(genes_table) <- paste0("Resample_", seq_along(resample_indices))
-  
-  # Create a partition table (fixed partitions)
-  partition_counter <- 1
-  for (split_idx in seq_along(train_test_splits)) {
-    split_info <- train_test_splits[[split_idx]]
-    partition_table <- rbind(partition_table, data.frame(
-      Partition_ID = paste("Partition", partition_counter),
-      Train_Splits = paste(replicate_cols[split_info$train_replicates], collapse = ","),
-      Test_Splits = paste(replicate_cols[split_info$test_replicates], collapse = ",")
-    ))
-    partition_counter <- partition_counter + 1
+  if (!is.data.frame(input_data) || !all(c("Gene", "Condition") %in% names(input_data))) {
+    stop("input_data must contain Gene and Condition columns.")
   }
-  
-  # Iterate over classification algorithms
+  .mettle_names(names(input_data), "Input column names")
+  if (anyNA(input_data$Gene) || anyNA(input_data$Condition) ||
+      any(!nzchar(as.character(input_data$Gene))) || any(!nzchar(as.character(input_data$Condition)))) {
+    stop("Gene and Condition must contain non-empty labels without NA.")
+  }
+  replicate_cols <- setdiff(names(input_data), c("Gene", "Condition"))
+  if (length(replicate_cols) < 2L) stop("At least two replicate columns are required.")
+  .mettle_numeric_matrix(input_data[, replicate_cols, drop = FALSE], "Replicate values")
+  conditions <- unique(as.character(input_data$Condition))
+  if (length(conditions) < 2L) stop("At least two conditions are required.")
+  blocks <- lapply(conditions, function(c) which(as.character(input_data$Condition) == c))
+  gene_ids <- as.character(input_data$Gene[blocks[[1]]])
+  .mettle_names(gene_ids, "Genes within each condition")
+  # Match by identity rather than assuming contiguous, identically ordered blocks.
+  blocks <- lapply(blocks, function(idx) {
+    ids <- as.character(input_data$Gene[idx])
+    .mettle_names(ids, "Genes within each condition")
+    if (!setequal(ids, gene_ids)) stop("All conditions must contain exactly the same genes.")
+    idx[match(gene_ids, ids)]
+  })
+  if (!replace_genes && num_genes > length(gene_ids)) stop("num_genes exceeds available genes without replacement.")
+  if (!is.numeric(train_percentage) || length(train_percentage) != 1L ||
+      !is.finite(train_percentage) || train_percentage <= 0 || train_percentage >= 1) {
+    stop("train_percentage must be strictly between 0 and 1.")
+  }
+  n_train <- round(train_percentage * length(replicate_cols))
+  if (n_train < 1L || n_train >= length(replicate_cols)) stop("The requested split must leave both training and test replicates.")
+  if (!is.character(algorithms) || !length(algorithms) || anyNA(algorithms) ||
+      any(!nzchar(algorithms)) || anyDuplicated(algorithms)) stop("algorithms must contain unique method names.")
+  if (!is.list(hyper_params) || !all(algorithms %in% names(hyper_params))) stop("Supply a tuning grid for every algorithm.")
   for (m in algorithms) {
-    accuracy_df <- data.frame()
-    models_boot <- list()
-    
-    # Iterate over resamples
-    for (i in seq_along(resample_indices)) {
-      resample_info <- resample_indices[[i]]
-      gene_subset <- input_data[resample_info$gene_indices, ]
-      cols_df <- data.frame()
-      
-      # Iterate over train/test splits
-      for (split_idx in seq_along(resample_info$train_test_splits)) {
-        split_info <- resample_info$train_test_splits[[split_idx]]
-        train_cols_idx <- split_info$train_replicates+1
-        train_data <- gene_subset[, c(1,train_cols_idx,6)]
-        indices_train_data <- 1:nrow(train_data)
-        train_data$Condition <- factor(train_data$Condition)
-        train_cols <- replicate_cols[split_info$train_replicates]
-        
-        test_cols_idx <- split_info$test_replicates+1
-        test_data <- gene_subset[,!(1:length(gene_subset)) %in% c(train_cols_idx,6)]
-        test_data <- cbind(test_data,replicate(length(train_cols_idx)-1,test_data[2]))
-        test_data$Condition <- gene_subset$Condition
-        colnames(test_data) <- c("Gene",names(gene_subset[train_cols_idx]),"Condition")
-        test_cols <- replicate_cols[split_info$test_replicates]
-        
-        # Set up trainControl for bootstrapping and resampling
-        trControl <- trainControl(
-          method = "boot", 
-          number = 1,
-          index = list(indices_train_data),
-          indexOut = list(indices_train_data)
-        )
-        
-        # Define the tuning grid (single row for non-resampling or multi rows if tuning)
-        tuneGrid <- hyper_params[[m]]
-        
-        set.seed(seed)
-        result <- tryCatch({
-          model <- train(
-            Condition~.,
-            data = train_data,
-            method = m,
-            metric = "Accuracy",
-            preProcess = "center",
-            trControl = trControl,
-            tuneGrid = tuneGrid,
-            allowParallel= parallel
-          )
-          
-          acc_treino <- model$results%>%
-            filter(mtry==model$bestTune$mtry)%>%
-            select(Accuracy)
-          
-          predictions <- predict(model, newdata = test_data[1:5])
-          ref <- factor(test_data$Condition)
-          metrics_list <- list()
-          
-          conf_matrix <- confusionMatrix(predictions, ref)
-          metrics_list$accuracy <- conf_matrix$overall["Accuracy"]
-          #metrics_list$accuracy <- mean(predictions == ref)
-          
-          list(model = model, metrics = metrics_list)
-        }, error = function(e) return(NULL))
-        
-        if (is.null(result) || length(result$metrics) < 1) next
-        
-        # Collect metrics for the current resample and split
-        metrics_row <- data.frame(
-          algorithm = m,
-          resample = i,
-          data_split = split_idx,
-          train_partition = paste(train_cols, collapse = ","),
-          test_partition = paste(test_cols, collapse = ",")
-        )
-        
-        for (metric in names(result$metrics)) {
-          metrics_row[[paste0("train_accuracy")]] <- acc_treino$Accuracy
-          metrics_row[[paste0("test_", metric)]] <- result$metrics[[metric]]
-        }
-        
-        # Add to eval table
-        cols_df <- rbind(cols_df, metrics_row)
-        models_boot[[paste0("resample_", i, "_split_", split_idx)]] <- result$model
-      }
-      
-      if (nrow(cols_df) > 0) {
-        for (metric in names(result$metrics)) {
-          cols_df[[paste0("summary_test_", metric)]] <- if (summary_stat == "median") {
-            median(cols_df[[paste0("test_", metric)]], na.rm = TRUE)
-          } else {
-            mean(cols_df[[paste0("test_", metric)]], na.rm = TRUE)
-          }
-        }
-      }
-      
-      accuracy_df <- rbind(accuracy_df, cols_df)
-      
-    }
-    
-    eval_table <- rbind(eval_table, accuracy_df)
-    models[[m]] <- models_boot
+    if (!is.data.frame(hyper_params[[m]]) || !nrow(hyper_params[[m]])) stop("Each tuning grid must be a non-empty data frame.")
   }
-  
-  # Return genes_table as a list of gene positions for each resample
-  return(list(
-    eval_table = eval_table,
-    partition_table = partition_table,  # return partition table with Partition_ID
-    genes_table = genes_table,  # List of gene positions for each resample
-    models = models
-  ))
+  if (!requireNamespace("caret", quietly = TRUE)) stop("Install caret before classification.")
+  splits <- utils::combn(seq_along(replicate_cols), n_train, simplify = FALSE)
+  partition_table <- do.call(rbind, lapply(seq_along(splits), function(s) data.frame(
+    Partition_ID = paste("Partition", s),
+    Train_Splits = paste(replicate_cols[splits[[s]]], collapse = ","),
+    Test_Splits = paste(replicate_cols[setdiff(seq_along(replicate_cols), splits[[s]])], collapse = ","))))
+  set.seed(seed)
+  selections <- lapply(seq_len(num_resamples), function(i) sample(seq_along(gene_ids), num_genes, replace = replace_genes))
+  genes_table <- as.data.frame(do.call(cbind, selections))
+  names(genes_table) <- paste0("Resample_", seq_len(num_resamples))
+  gene_ids_table <- as.data.frame(lapply(selections, function(idx) gene_ids[idx]), stringsAsFactors = FALSE)
+  names(gene_ids_table) <- names(genes_table)
+  attr(genes_table, "gene_ids") <- gene_ids_table
+  attr(genes_table, "gene_order") <- gene_ids
+  eval_rows <- list(); test_rows <- list(); status_rows <- list(); models <- list()
+  for (m in algorithms) {
+    models[[m]] <- list()
+    for (i in seq_len(num_resamples)) {
+      idx <- unlist(lapply(blocks, function(b) b[selections[[i]]]), use.names = FALSE)
+      subset <- input_data[idx, , drop = FALSE]
+      reference <- factor(as.character(subset$Condition), levels = conditions)
+      for (s in seq_along(splits)) {
+        train_cols <- replicate_cols[splits[[s]]]
+        test_cols <- setdiff(replicate_cols, train_cols)
+        key <- paste0("resample_", i, "_split_", s)
+        trained <- tryCatch({
+          training <- subset[, train_cols, drop = FALSE]
+          # A constant identifier has no information and cannot be dummy-encoded.
+          use_gene <- include_gene && length(unique(subset$Gene)) > 1L
+          if (use_gene) training <- cbind(Gene = as.character(subset$Gene), training)
+          training$Condition <- reference
+          control <- caret::trainControl(method = "boot", number = 1,
+            index = list(seq_len(nrow(training))), indexOut = list(seq_len(nrow(training))),
+            allowParallel = parallel)
+          set.seed(seed)
+          model <- caret::train(Condition ~ ., data = training, method = m, metric = "Accuracy",
+            preProcess = "center", trControl = control, tuneGrid = hyper_params[[m]])
+          # Match every tuning parameter, not only mtry.
+          best <- rep(TRUE, nrow(model$results))
+          for (param in names(model$bestTune)) {
+            value <- model$bestTune[[param]][1]
+            best <- best & if (is.na(value)) is.na(model$results[[param]]) else
+              !is.na(model$results[[param]]) & model$results[[param]] == value
+          }
+          accuracy <- model$results$Accuracy[best]
+          if (length(accuracy) != 1L || !is.finite(accuracy)) stop("Could not identify one finite training accuracy for bestTune.")
+          per_test <- vapply(test_cols, function(test_col) {
+            # Evaluate each held-out replicate separately, repeating its values as
+            # in the dissertation's original leave-one-replicate-out procedure.
+            testing <- as.data.frame(matrix(rep(subset[[test_col]], length(train_cols)), ncol = length(train_cols)))
+            names(testing) <- train_cols
+            if (use_gene) testing <- cbind(Gene = as.character(subset$Gene), testing)
+            predicted <- stats::predict(model, newdata = testing)
+            if (length(predicted) != length(reference) || anyNA(predicted)) stop("Invalid predictions.")
+            mean(as.character(predicted) == as.character(reference))
+          }, numeric(1))
+          list(model = model, train_accuracy = accuracy, per_test = per_test)
+        }, error = function(e) e)
+        ok <- !inherits(trained, "error")
+        error <- if (ok) NA_character_ else conditionMessage(trained)
+        status_rows[[length(status_rows) + 1L]] <- data.frame(algorithm = m, resample = i,
+          data_split = s, status = if (ok) "ok" else "error", error = error)
+        if (!ok && error_handling == "stop") stop(sprintf("%s, resample %d, partition %d: %s", m, i, s, error), call. = FALSE)
+        eval_rows[[length(eval_rows) + 1L]] <- data.frame(algorithm = m, resample = i,
+          data_split = s, train_partition = paste(train_cols, collapse = ","),
+          test_partition = paste(test_cols, collapse = ","),
+          train_accuracy = if (ok) trained$train_accuracy else NA_real_,
+          test_accuracy = if (ok) mean(trained$per_test) else NA_real_,
+          status = if (ok) "ok" else "error", error = error)
+        if (ok) {
+          models[[m]][[key]] <- trained$model
+          test_rows[[length(test_rows) + 1L]] <- data.frame(algorithm = m, resample = i, data_split = s,
+            test_replicate = test_cols, test_accuracy = unname(trained$per_test))
+        }
+      }
+    }
+  }
+  eval_table <- do.call(rbind, eval_rows)
+  eval_table$summary_test_accuracy <- NA_real_
+  for (m in algorithms) for (i in seq_len(num_resamples)) {
+    rows <- which(eval_table$algorithm == m & eval_table$resample == i)
+    # Never present a failed/incomplete set of partitions as a complete score.
+    if (all(eval_table$status[rows] == "ok")) {
+      eval_table$summary_test_accuracy[rows] <- if (summary_stat == "median")
+        stats::median(eval_table$test_accuracy[rows]) else mean(eval_table$test_accuracy[rows])
+    }
+  }
+  status_table <- do.call(rbind, status_rows)
+  if (any(status_table$status == "error")) warning("Some model fits failed; see status_table. Incomplete resamples have NA summaries.")
+  list(eval_table = eval_table, partition_table = partition_table, genes_table = genes_table,
+    models = models, gene_ids_table = gene_ids_table, status_table = status_table,
+    test_eval_table = if (length(test_rows)) do.call(rbind, test_rows) else data.frame(),
+    sample_map = attr(input_data, "sample_map"), summary_stat = summary_stat)
 }
-

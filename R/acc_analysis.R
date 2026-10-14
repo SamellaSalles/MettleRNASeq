@@ -1,6 +1,7 @@
 #' Across-Condition Correlations (ACC) Analysis
 #'
 #' Calculates correlations between same genes across two different conditions and optionally plots the results.
+#' Rows must be biologically paired across conditions in the supplied order; equal group size alone does not establish pairing.
 #' Note: This function only works for comparing exactly 2 conditions at a time.
 #'
 #' @param data A data frame or matrix containing gene expression data with rows as samples and columns as genes.
@@ -52,6 +53,10 @@ acc_analysis <- function(data, condition_split,
                          xlab = "Gene", 
                          ylab = "Correlation") {
   
+  data <- as.data.frame(.mettle_numeric_matrix(data))
+  split_indices <- .mettle_split(data, condition_split)
+  if (length(split_indices[[1]]) != length(split_indices[[2]])) stop("ACC requires equal numbers of paired observations in both conditions.")
+  method <- match.arg(method, c("spearman", "pearson", "kendall"))
   # Validate inputs
   if (length(condition_split) != 2) {
     stop("This function only works for comparing exactly 2 conditions. 'condition_split' must be a vector of length 2.")

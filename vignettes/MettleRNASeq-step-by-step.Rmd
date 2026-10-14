@@ -1,0 +1,731 @@
+---
+title: "MettleRNASeq: step-by-step manual and function reference"
+author: "Samella Salles"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{MettleRNASeq: step-by-step manual in English}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 8,
+  fig.height = 5, fig.align = "center")
+```
+
+# How to use this manual
+
+Run the code blocks in order, in the same R session. Each stage creates an
+object used by subsequent stages. This tutorial calls **all 12 functions
+individually**, displays their outputs, and explains how to choose parameters.
+Alternative blocks are optional. The main code is also available in
+`inst/examples/step_by_step.R`, for line-by-line execution in RStudio.
+
+The sequence follows the MSc workflow: normalization → sample distances → PCA
+→ PCA gene selection → input preparation → classification with gene resampling
+→ classification-based selection → ACC → ICC → ICC differences → rules for
+each condition → rule comparison. Distances and ACC are complementary analyses:
+the distance matrix is not the PCA input, and ACC is not the ICC input.
+Both use the relevant expression matrix.
+
+This manual accompanies development version **1.0.0.9000**. The small example
+teaches and checks the software. It does not reproduce all experiments,
+parameter settings or scientific findings in the dissertation.
+
+# Installation and data layout
+
+If necessary, install dependencies and the revised local package once:
+
+```{r install, eval=FALSE}
+install.packages(c("BiocManager", "remotes", "randomForest"))
+BiocManager::install(c("edgeR", "DESeq2"), ask = FALSE, update = FALSE)
+remotes::install_local("path/to/MettleRNASeq", build_vignettes = TRUE)
+```
+
+The first installation command in the block installs CRAN dependencies; the
+second installs Bioconductor dependencies. Replace the local path with the
+revised package folder. Use GitHub installation after this version is released.
+The package declares R ≥ 4.2.0; these examples were tested with R 4.4.1 on
+Windows. Install dependency versions compatible with your R version.
+
+Working matrices have **samples in rows and genes in columns**, with unique
+sample and gene names. Metadata identifies each sample's condition and must
+follow the matrix row order. Read alignment and counting happen upstream.
+
+```{r load}
+library(MettleRNASeq)
+packageVersion("MettleRNASeq")
+expression <- read.csv(system.file("extdata", "mestrado_bone_expression.csv",
+  package = "MettleRNASeq"), row.names = 1, check.names = FALSE)
+metadata <- read.csv(system.file("extdata", "mestrado_bone_metadata.csv",
+  package = "MettleRNASeq"), stringsAsFactors = FALSE)
+stopifnot(identical(rownames(expression), metadata$Sample))
+dim(expression)
+metadata
+expression[1:3, 1:4]
+```
+
+The example has eight samples, four FLASH and four STANDARD, and 235 genes
+from the MSc bone analysis. Values were reshaped from `B4.csv` without numerical
+changes. They are **already normalized and preselected**; do not normalize
+this matrix again or treat it as raw counts. The source study is Velalopoulou
+et al. (2021), doi:10.1158/0008-5472.CAN-21-1500, GEO GSE173944.
+Provenance is documented in `inst/extdata/PROVENANCE.txt`.
+
+For your own files, use the following pattern and align metadata explicitly.
+Transpose a gene-by-sample matrix first with `as.data.frame(t(expression))`.
+
+```{r own-data, eval=FALSE}
+expression <- read.csv("my_matrix.csv", row.names = 1, check.names = FALSE)
+metadata <- read.csv("my_metadata.csv", stringsAsFactors = FALSE)
+metadata <- metadata[match(rownames(expression), metadata$Sample), ]
+stopifnot(!anyNA(metadata$Sample),
+  identical(rownames(expression), metadata$Sample))
+```
+
+# Normalize counts: `normalize_count_matrix()`
+
+**Purpose:** filter genes and normalize raw counts. **Input:** nonnegative
+numbers, samples in rows and genes in columns. **Output:** a normalized
+`data.frame`, retaining identifiers for surviving samples and genes.
+Normalization does not convert processed expression back into raw counts.
+
+| Parameter | How to choose |
+|:--|:--|
+| `count_matrix` | Your raw-count matrix. DESeq2 requires integer counts. |
+| `method` | `"TMM"` uses edgeR normalization factors; `"DESeq2"` uses size factors; `"scale"` scales each gene without centering. These are different procedures. |
+| `min_count` | Minimum count per sample for the filter; default 10. |
+| `group_size` | Minimum number of samples reaching `min_count`; default 4. This counts samples, not conditions. |
+| `remove_low_variance` | `TRUE` removes zero-variance genes; it does not apply a general low-variance threshold. |
+
+To demonstrate normalization without renormalizing the MSc example, generate
+synthetic raw counts. Do not mix their outputs with the real example.
+
+```{r normalize}
+set.seed(123)
+counts <- as.data.frame(matrix(rnbinom(8 * 60, size = 10, mu = 100), 8))
+rownames(counts) <- paste0("Sample_", 1:8)
+colnames(counts) <- paste0("Gene_", 1:60)
+normalized_synthetic <- normalize_count_matrix(counts, method = "TMM",
+  min_count = 10, group_size = 4, remove_low_variance = TRUE)
+dim(normalized_synthetic)
+attr(normalized_synthetic, "removed_genes")
+attr(normalized_synthetic, "removed_samples")
+# Continue with the already normalized MSc matrix; do not normalize it again.
+normalized <- expression
+```
+
+To retain genes reaching the threshold in at least two samples, set
+`group_size = 2`. To compare methods, start each from the **same raw matrix**,
+rather than applying methods successively. If filtering removes samples,
+realign metadata using `match(rownames(normalized), metadata$Sample)`.
+TMM returns counts adjusted by effective library sizes, without automatic log
+or CPM transformation. Scaling also follows the count filters and nonnegative
+input requirement; this is not a generic scaler for negative-valued matrices.
+
+```{r normalization-options, eval=FALSE}
+deseq_counts <- normalize_count_matrix(counts, method = "DESeq2")
+scaled_counts <- normalize_count_matrix(counts, method = "scale")
+```
+
+# Compare samples: `compute_distance_matrix()`
+
+**Purpose:** inspect sample similarities and display a heatmap.
+**Input:** `normalized`. **Output:** a square sample-by-sample matrix.
+This stage does not automatically remove samples.
+
+| Parameter | How to choose |
+|:--|:--|
+| `count_matrix` | Expression matrix with samples in rows. |
+| `use_correlation` | `FALSE` computes a distance; `TRUE` computes `1 - correlation` between samples. |
+| `method` | For distances: `"euclidean"`, `"manhattan"`, `"canberra"` or `"minkowski"`. |
+| `correlation_method` | For correlations: `"spearman"`, `"pearson"` or `"kendall"`. |
+| `plot_heatmap` | `TRUE` displays the heatmap; `FALSE` only computes the matrix. |
+| `cluster_rows`, `cluster_cols` | Enable clustering in the heatmap. |
+| `clustering_method` | A clustering method, such as `"complete"` or `"average"`. |
+| `display_numbers`, `number_color` | Show cell values and choose their color. |
+| `color_palette`, `breaks` | Colors and number of divisions in the palette. |
+| `main_title` | Heatmap title; `NULL` uses an automatic title. |
+
+```{r distance}
+distances <- compute_distance_matrix(normalized,
+  use_correlation = TRUE, correlation_method = "spearman",
+  plot_heatmap = TRUE, display_numbers = TRUE,
+  main_title = "Sample distance: 1 - Spearman")
+round(distances[1:4, 1:4], 3)
+```
+
+For Euclidean comparison of expression magnitudes, use
+`use_correlation = FALSE, method = "euclidean"`. The matrix is returned whether
+or not you request a plot. Different metrics respond to different aspects of
+the data and can produce different sample groupings.
+
+# Explore components: `pca_analysis()`
+
+**Purpose:** compute PCA, explained variance and sample representations.
+**Input:** `normalized` and aligned metadata. **Output:** a list whose
+`pca_result` is passed to the next gene-selection stage.
+
+| Parameter | How to choose |
+|:--|:--|
+| `count_matrix` | Expression matrix. |
+| `design_matrix` | Optional metadata in the same order as samples. |
+| `color_by`, `shape_by` | Metadata column name or aligned vector; for example, condition for color and batch for shape. |
+| `center` | `TRUE` centers each gene for PCA; the default. |
+| `scale` | `TRUE` standardizes genes before PCA; default `FALSE`. This changes relative gene weights and may change selection. |
+| `plot_2d`, `plot_3d` | Display two- or three-dimensional plots; 3D requires enough components. |
+| `plot_cos2` | Display sample representation quality. |
+| `plot_corrplot` | `NULL` disables it; `"cos2"`, `"contrib"` or `"coord"` selects the displayed quantity. |
+| `gradient_cols` | Colors for the representation-quality plot. |
+
+```{r pca}
+pca <- pca_analysis(normalized, design_matrix = metadata,
+  color_by = "Condition", center = TRUE, scale = FALSE,
+  plot_2d = TRUE, plot_3d = FALSE)
+data.frame(PC = seq_along(pca$variance),
+  variance_percent = pca$variance,
+  cumulative_percent = pca$cumulative_variance)
+head(pca$cos2)
+```
+
+`variance` and `cumulative_variance` are percentages. `eigenvalues` contains
+eigenvalues; `ind` includes coordinates, contributions and cos². Plots are
+displayed during the call but are not returned as components of this list.
+
+```{r pca-options, eval=FALSE}
+detailed_pca <- pca_analysis(normalized, design_matrix = metadata,
+  color_by = "Condition", plot_cos2 = TRUE, plot_corrplot = "contrib",
+  plot_3d = TRUE)
+```
+
+# Select genes by PCA: `feature_selection_pca()`
+
+**Purpose:** select genes by absolute PCA loadings.
+**Input:** `pca$pca_result` and its matching matrix.
+**Output:** gene identifiers and a reduced matrix. A gene selected in several
+components appears once; two PCs × twelve genes need not yield 24 distinct genes.
+
+| Parameter | How to choose |
+|:--|:--|
+| `pca_result` | A `prcomp` object, here `pca$pca_result`. |
+| `count_matrix` | Matrix corresponding to the PCA, with matching gene IDs. |
+| `num_pcs` | Number of components to consider. |
+| `num_genes_per_pc` | Number of genes selected from each component. |
+| `select_worst` | `FALSE` selects largest absolute loadings; `TRUE`, smallest. This is not a biological ranking of good/bad genes. |
+| `use_last_pcs` | `FALSE` uses the first PCs; `TRUE`, the last PCs. |
+
+```{r features}
+pca_selection <- feature_selection_pca(pca$pca_result, normalized,
+  num_pcs = 2, num_genes_per_pc = 12,
+  select_worst = FALSE, use_last_pcs = FALSE)
+length(pca_selection$selected_genes)
+head(pca_selection$selected_genes)
+refined <- pca_selection$selected_count_matrix
+dim(refined)
+```
+
+In the dissertation, four leading PCs and 100 genes per PC yielded 235 bone
+genes and 186 skin genes from the original matrices. The included bone matrix
+is **already preselected**. Selecting again demonstrates the function rather
+than reconstructing that selection from the full transcriptome.
+To repeat the original parameter choice, start with the corresponding full matrix:
+
+```{r original-pca-settings, eval=FALSE}
+# full_normalized must come from the original full matrix, not the reduced example.
+full_pca <- pca_analysis(full_normalized, plot_2d = FALSE)
+refined_matrix <- feature_selection_pca(full_pca$pca_result, full_normalized,
+  num_pcs = 4, num_genes_per_pc = 100)
+```
+
+# Prepare classification input: `prepare_input_matrix()`
+
+**Purpose:** transform the sample-by-gene matrix into gene-condition rows with
+`Gene`, `Rep_1`, `Rep_2`, … and `Condition` columns.
+**Input:** `refined` and condition metadata. **Output:** a classification table
+with a `sample_map` attribute linking replicate slots to original sample IDs.
+Conditions must have equal replicate counts and matching genes.
+
+| Parameter | How to choose |
+|:--|:--|
+| `count_matrix` | Expression matrix; orientation is determined from the sample identifiers. |
+| `design_table` | Metadata table, when using the table interface. |
+| `sample_col`, `condition_col` | Sample and condition column names in `design_table`. |
+| `sample_vector`, `condition_vector` | Alternative to a table: matching sample-name and condition vectors. |
+
+```{r prepare}
+input <- prepare_input_matrix(refined, design_table = metadata,
+  sample_col = "Sample", condition_col = "Condition")
+head(input)
+attr(input, "sample_map")
+```
+
+Use one metadata interface. The equivalent vector interface is:
+
+```{r prepare-options, eval=FALSE}
+input <- prepare_input_matrix(refined,
+  sample_vector = metadata$Sample, condition_vector = metadata$Condition)
+```
+
+# Classify and resample: `classification_approach_advanced()`
+
+**Purpose:** draw genes and fit algorithms across all allowed replicate
+partitions. **Input:** `input`. **Output:** models and tables recording scores,
+genes, partitions, sample identities and fitting failures.
+
+| Parameter | How to choose |
+|:--|:--|
+| `input_data` | Table returned by `prepare_input_matrix()`. |
+| `algorithms` | caret methods such as `"rf"`, `"ranger"` or `"svmLinear2"`; install their model engines. |
+| `hyper_params` | Named list of algorithm-specific tuning-grid data frames. RF uses `mtry`; other methods have their own grid columns. |
+| `num_resamples` | Number of gene sets to draw; increases the number of fitted models. |
+| `num_genes` | Genes drawn per set, from the first condition and matched by identity in the others. |
+| `train_percentage` | Fraction of replicates for training; `.75` with four replicates gives three training and one test replicate. |
+| `metrics` | Currently only `"Accuracy"` is supported. |
+| `summary_stat` | `"median"` or `"mean"` to summarize partition test scores for each resample. |
+| `replace_genes` | `TRUE` permits repeated genes, as in the original procedure; `FALSE` requires enough available genes. |
+| `parallel` | Allows parallel model training; does not automatically configure a worker cluster. |
+| `seed` | Random seed for reproducibility in a compatible recorded environment. |
+| `include_gene` | `TRUE` preserves gene identity as a predictor in the original procedure. Setting `FALSE` changes the analysis. |
+| `error_handling` | `"stop"` reports the failed fit and stops; `"continue"` records failures and leaves incomplete summaries as `NA`. |
+
+```{r classification}
+classification <- classification_approach_advanced(input,
+  algorithms = "rf", hyper_params = list(rf = data.frame(mtry = c(1, 3))),
+  num_resamples = 3, num_genes = 10, train_percentage = .75,
+  metrics = "Accuracy", summary_stat = "median", replace_genes = TRUE,
+  parallel = FALSE, seed = 123, include_gene = TRUE,
+  error_handling = "stop")
+classification$partition_table
+head(classification$eval_table)
+classification$status_table
+head(classification$gene_ids_table)
+```
+
+**Where results are stored:** `eval_table` records scores by algorithm,
+resample and partition; `test_eval_table` separates held-out replicates;
+`partition_table` describes splits; `genes_table` retains legacy positions;
+`gene_ids_table` stores IDs including repeated draws; `sample_map` identifies
+samples; `status_table` records successes/failures; `models` stores trained
+models; `summary_stat` identifies the chosen summary.
+
+Four replicates and `.75` training give four partitions. Three resamples and
+one algorithm therefore produce twelve partition fits, each with its tuning
+grid. The dissertation explored 10–50 genes per resample and 100–10000
+resamples. These larger settings cost more and are unnecessary for learning
+the workflow. Runtime depends on the data, engine and tuning grid.
+
+`mtry` is the number of predictors considered at each RF tree split; it is not
+the number of genes drawn, which is controlled by `num_genes`. The short
+`c(1, 3)` grid is suitable for this small teaching example. For multiple engines,
+provide a grid for each:
+
+```{r multi-engine, eval=FALSE}
+install.packages("ranger")
+several_engines <- classification_approach_advanced(input,
+  algorithms = c("rf", "ranger"),
+  hyper_params = list(
+    rf = data.frame(mtry = c(1, 3)),
+    ranger = expand.grid(mtry = c(1, 3), splitrule = "gini",
+      min.node.size = c(1, 3))),
+  num_resamples = 3, num_genes = 10, seed = 123)
+```
+
+**Interpretation:** training rows represent gene-condition combinations and
+replicates are predictors. For each held-out replicate, its expression values
+are repeated into the training-column layout. If several replicates are held
+out, each is evaluated and their scores are averaged. Internal training retains
+the original procedure and is not independent validation. Do not present these
+scores as validated prediction accuracy for unseen patients or unseen genes.
+
+# Select genes from resamples: `genes_from_classification_results()`
+
+**Purpose:** select resamples by explicit IDs or a score threshold and extract
+their genes. **Input:** classification tables and `refined`.
+**Output:** selected genes, a filtered matrix and an optional score plot.
+
+| Parameter | How to choose |
+|:--|:--|
+| `eval_table`, `genes_table` | Tables returned by classification. |
+| `count_matrix` | Sample-by-gene matrix to filter, here `refined`. |
+| `resamples` | Explicit IDs, such as `c(1, 3)`; when supplied, these determine selection. |
+| `cutoff`, `metric_column` | Alternative to IDs: select resamples whose metric is **at least** the threshold, for example `"summary_test_accuracy"`. |
+| `selection_mode` | `"unique"` returns the union of genes; `"intersect"` retains genes present in all selected resamples. |
+| `algorithm` | Restrict selection to an algorithm; `NULL` uses the union of qualifying IDs across algorithms. |
+| `gene_ids_table` | Explicit ID table; especially useful after CSV export/reimport. |
+| `partition_table` | Identifies partitions in the plot colors. |
+| `plot_type` | `"summary"` shows summary scores; `"all"`, partition scores; `"both"`, both. |
+| `plot_resamples_only` | `TRUE` shows selected IDs only; `FALSE`, all resamples. |
+| `return_plot` | `TRUE` displays and returns a plot; `FALSE` only selects genes. |
+| `hline_yintercept`, `hline_color` | Value and color of the visual reference line; this line does not select genes. |
+| `median_color` | Summary-score color, including when `summary_stat = "mean"`. |
+| `test_colors`, `show_legend` | Partition colors and legend visibility; provide enough colors for displayed partitions. |
+
+For this short example, select the resample with the largest recorded summary.
+This keeps relationship figures small; it is not a significance test or an
+independent assessment of discovery performance.
+
+```{r select}
+scores <- unique(classification$eval_table[,
+  c("algorithm", "resample", "summary_test_accuracy")])
+scores
+chosen_id <- scores$resample[which.max(scores$summary_test_accuracy)]
+selection <- genes_from_classification_results(classification$eval_table,
+  classification$genes_table, refined, resamples = chosen_id,
+  gene_ids_table = classification$gene_ids_table,
+  partition_table = classification$partition_table, selection_mode = "unique",
+  plot_type = "both", plot_resamples_only = FALSE, return_plot = TRUE)
+selection$selected_resamples
+selection$selected_gene_ids
+selected_expression <- selection$filtered_matrix
+dim(selected_expression)
+```
+
+For threshold-based selection and the intersection option shown in the
+dissertation, use:
+
+```{r selection-options, eval=FALSE}
+threshold_selection <- genes_from_classification_results(classification$eval_table,
+  classification$genes_table, refined, cutoff = .85,
+  metric_column = "summary_test_accuracy", selection_mode = "intersect",
+  algorithm = "rf", gene_ids_table = classification$gene_ids_table,
+  partition_table = classification$partition_table,
+  plot_type = "both", hline_yintercept = .85)
+```
+
+To continue with that choice, assign `selected_expression <- threshold_selection$filtered_matrix`.
+No resample may meet the cutoff, or the gene intersection may be empty. Inspect
+scores and selected sets before proceeding. Do not lower thresholds solely to
+force a nonempty result. Union/intersection changes the gene universe downstream.
+CSV loses R attributes: save `gene_ids_table` explicitly or use RDS to preserve
+the full classification object and its mapping.
+
+# Correlate each gene across conditions: `acc_analysis()`
+
+**Purpose:** correlate each gene's two condition-specific replicate vectors.
+**Input:** `selected_expression`, with samples in two ordered blocks.
+**Output:** a table if `plot = FALSE`; a list with `results` and `plot` if `TRUE`.
+
+| Parameter | How to choose |
+|:--|:--|
+| `data` | Sample-by-gene matrix. |
+| `condition_split` | Endpoints of the two blocks: `c(4, 8)` means rows 1–4 and 5–8, not just rows 4 and 8. |
+| `method` | `"spearman"`, `"pearson"` or `"kendall"`; default Spearman. |
+| `plot` | Also generate a bar plot. |
+| `color` | One color for all bars or two for negative/positive correlations. |
+| `orientation` | `"vertical"` or `"horizontal"`. |
+| `show_legend`, `rotate_labels` | Legend visibility and rotated labels on vertical plots. |
+| `title`, `xlab`, `ylab` | Plot title and axis labels. |
+
+```{r acc}
+stopifnot(identical(metadata$Condition,
+  rep(c("FLASH", "STANDARD"), each = 4)))
+split <- c(4, 8)
+acc <- acc_analysis(selected_expression, condition_split = split,
+  method = "spearman", plot = TRUE, orientation = "horizontal")
+acc$results
+```
+
+ACC aligns replicates **by position**: first with first, second with second,
+and so on. This does not establish biological pairing. The example illustrates
+an exploratory vector comparison; without justified pairing, do not interpret
+it as correlation of biologically paired observations. For your own data,
+arrange and document sample order before calling the function.
+
+# Correlate genes within each condition: `icc_analysis()`
+
+**Purpose:** compute gene-by-gene correlations separately within each condition.
+**Input:** the same `selected_expression`.
+**Output:** a list with two correlation matrices used by `icc_difference()`.
+
+| Parameter | How to choose |
+|:--|:--|
+| `data`, `condition_split` | Matrix and endpoints of the two condition blocks. |
+| `method` | `"spearman"`, `"pearson"` or `"kendall"`. |
+| `plot` | Display both correlograms. |
+| `colors` | Colors for negative, zero and positive correlations. |
+| `plot_type` | `"lower"`, `"upper"` or `"full"` selects the displayed triangle or full matrix. |
+| `show_coef` | Display coefficients in cells. |
+| `tl.cex`, `number.cex` | Font sizes for gene names and coefficients. |
+| `order` | Visual ordering: `"AOE"`, `"FPC"`, `"hclust"` or `"alphabet"`. |
+
+```{r icc}
+icc <- icc_analysis(selected_expression, condition_split = split,
+  method = "spearman", plot = TRUE, plot_type = "lower",
+  show_coef = TRUE, tl.cex = .6, number.cex = .6, order = "alphabet")
+round(icc$correlation_matrix_cond1[1:4, 1:4], 2)
+round(icc$correlation_matrix_cond2[1:4, 1:4], 2)
+```
+
+The first matrix corresponds to FLASH and the second to STANDARD in this
+sample order. Correlations range from −1 to 1. Constant genes can produce
+`NA`; four samples per condition give exploratory estimates sensitive to
+individual observations. Visual ordering does not change calculated coefficients.
+
+# Compare correlations: `icc_difference()`
+
+**Purpose:** calculate `abs(cor_cond1 - cor_cond2)` for matching gene pairs.
+**Input:** `icc`. **Output:** a complete matrix, a pair table and optional heatmap.
+Absolute differences range from 0 to 2. They do not show which condition has
+the larger signed correlation; consult both ICC matrices for that information.
+
+| Parameter | How to choose |
+|:--|:--|
+| `icc_result` | List returned by ICC analysis. |
+| `cutoff` | `NULL` retains all differences; a value from 0 to 2 retains differences **at least** that value in the table. |
+| `unique_pairs` | `TRUE` returns each undirected pair once, without the diagonal; `FALSE` includes self-pairs and both directions, matching the legacy full table. |
+| `plot` | Draw the heatmap. |
+| `heatmap_colors`, `heatmap_breaks` | Color-palette function and interval boundaries. |
+| `show_rownames`, `show_colnames` | Display gene labels. |
+| `cluster_rows`, `cluster_cols` | Cluster rows and columns in the figure. |
+| `fontsize` | Base heatmap text size. |
+
+```{r differences}
+differences <- icc_difference(icc, cutoff = NULL,
+  unique_pairs = TRUE, plot = TRUE, fontsize = 7)
+head(differences$difference_table)
+dim(differences$absolute_diff_matrix)
+```
+
+To retain changes of at least 1:
+
+```{r difference-filter}
+large_changes <- icc_difference(icc, cutoff = 1, plot = FALSE)
+head(large_changes$difference_table)
+```
+
+The filter affects the table and masks the plotted cells; `absolute_diff_matrix`
+retains the complete matrix. A correlation-difference cutoff is not a
+statistical-significance threshold.
+
+# Mine rules for each condition: `mine_gene_associations()`
+
+**Purpose:** find associations between gene-expression states within each
+condition. **Input:** `selected_expression` and its condition-specific row indices.
+**Output:** `transactions`, an arules `rules` object, `rules_df`, and a `plot`
+object when generated.
+
+| Parameter | How to choose |
+|:--|:--|
+| `data` | Sample-by-gene matrix. Numeric columns are discretized; factor columns allow predefined states. |
+| `condition_rows` | Sample indices: `1:4` for FLASH and `5:8` for STANDARD here. |
+| `method` | `"apriori"` or `"fpgrowth"`; the latter additionally requires the optional `fim4r` backend. |
+| `supp` | Minimum support: fraction of samples containing all rule items. With four samples, `.5` requires at least two. |
+| `conf` | Minimum confidence: consequent frequency among transactions containing the antecedent. |
+| `lift` | `NULL` disables lift filtering; a numeric value sets minimum lift. Lift is not a p-value. |
+| `minlen`, `maxlen` | Minimum/maximum total items across both rule sides. `maxlen = 2` restricts to short rules. |
+| `target_genes` | Exact gene names of interest; `NULL` does not restrict them. |
+| `search_type` | Match targets in `"lhs"` (antecedent), `"rhs"` (consequent) or `"both"`. |
+| `plot_type` | `"scatter"`, `"graph"`, `"paracoord"` or `"grouped"`. |
+| `interactive` | Enable supported interactive visualizations; `FALSE` is suitable for static tutorials/export. |
+| `top_n` | Limits plotted rules, not all returned rules. |
+| `measure`, `shading` | Measure and shading for grouped plots, such as support and lift. |
+| `color`, `lhs_max`, `rhs_max` | Color and grouped-plot controls. |
+
+```{r rules}
+flash_rules <- mine_gene_associations(selected_expression, condition_rows = 1:4,
+  method = "apriori", supp = .5, conf = .8, minlen = 2, maxlen = 2,
+  plot_type = "scatter", interactive = FALSE, top_n = 20)
+standard_rules <- mine_gene_associations(selected_expression, condition_rows = 5:8,
+  method = "apriori", supp = .5, conf = .8, minlen = 2, maxlen = 2,
+  plot_type = "scatter", interactive = FALSE, top_n = 20)
+length(flash_rules$rules)
+length(standard_rules$rules)
+head(flash_rules$rules_df)
+head(standard_rules$rules_df)
+head(arules::itemLabels(flash_rules$transactions))
+```
+
+A rule `A=state1 => B=state2` associates observed states. Support measures
+co-occurrence, confidence measures conditional frequency, and lift compares
+that frequency with the consequent's prevalence. The arrow does not establish
+direct regulation or causality. A warning that `maxlen = 2` stopped longer
+patterns reports the requested restriction rather than a failed fit.
+
+To focus on a gene in the consequent, use its exact name with
+`target_genes = "gene_name", search_type = "rhs"`. Increasing `maxlen` allows
+longer rules and may greatly increase their number. For a static network,
+choose `plot_type = "graph", interactive = FALSE`. Zero rules under the selected
+filters is a valid result.
+
+```{r rule-options, eval=FALSE}
+target_rules <- mine_gene_associations(selected_expression, 1:4,
+  target_genes = colnames(selected_expression)[1], search_type = "rhs",
+  supp = .5, conf = .8, maxlen = 2, lift = 1,
+  plot_type = "graph", interactive = FALSE)
+```
+
+**State definitions:** by default, numeric values are discretized separately
+within each condition. Identical bin labels need not have identical numerical
+boundaries. For comparable states, define cut points before splitting conditions
+and supply factor columns. This optional example shares each gene's global
+median between conditions:
+
+```{r shared-states, eval=FALSE}
+# Alternative state definition; changes the mined rules.
+states <- as.data.frame(lapply(selected_expression, function(x) {
+  state <- ifelse(x <= median(x), "low", "high")
+  factor(state, levels = c("low", "high"))
+}))
+rownames(states) <- rownames(selected_expression)
+flash_states <- mine_gene_associations(states, 1:4, maxlen = 2,
+  interactive = FALSE)
+standard_states <- mine_gene_associations(states, 5:8, maxlen = 2,
+  interactive = FALSE)
+```
+
+These cut points illustrate customization. They are not a validated biological
+state definition or automatic reproduction of the dissertation.
+
+# Compare rules: `compare_gene_rules()`
+
+**Purpose:** identify shared and condition-specific rules and display their
+relationships. **Input:** the two `rules_df` tables.
+**Output:** rule tables, clusters, plot objects and graph objects.
+
+| Parameter | How to choose |
+|:--|:--|
+| `rules_df1`, `rules_df2` | Rule tables containing `LHS` and `RHS`. |
+| `condition_names` | Two names matching the order of the tables. |
+| `comparison` | `"genes"` compares complete gene sets on both sides, ignoring states; `"items"` includes expression states in rule identity. |
+| `layout_type` | `"linear"` draws arcs; `"fr"` uses a force-directed layout. |
+| `plot` | Display shared and condition-specific rule graphs. |
+
+```{r compare}
+comparison <- compare_gene_rules(flash_rules$rules_df,
+  standard_rules$rules_df, condition_names = c("FLASH", "STANDARD"),
+  comparison = "genes", layout_type = "linear", plot = TRUE)
+comparison$shared_rules
+head(comparison$unique_rules_condition1)
+head(comparison$unique_rules_condition2)
+```
+
+`clusters` stores gene groups; `plots` stores figures; `graphs` stores networks;
+`original_rules` preserves the input tables. Support, confidence and lift do
+not define rule identity, so shared rules can have different metrics in the
+two conditions. For multiple genes on a rule side, the graph projects links
+between genes while the original rule retains the complete itemset.
+
+To require matching expression states:
+
+```{r compare-items}
+item_comparison <- compare_gene_rules(flash_rules$rules_df,
+  standard_rules$rules_df, condition_names = c("FLASH", "STANDARD"),
+  comparison = "items", plot = FALSE)
+nrow(item_comparison$shared_rules)
+```
+
+Interpret this option together with state definitions. The shared-cut-point
+example above gives common meanings to state labels.
+
+# Save results and resume later
+
+The workflow creates a separate object for every stage. Save R objects to
+preserve attributes, identifiers and models; use CSV for inspecting tables.
+The following block uses a temporary folder during manual construction.
+For your project, replace it with a permanent directory such as `"my_results"`.
+
+```{r save}
+directory <- file.path(tempdir(), "MettleRNASeq_step_by_step")
+dir.create(directory, recursive = TRUE, showWarnings = FALSE)
+saveRDS(list(normalized = normalized, metadata = metadata,
+  distances = distances, pca = pca, pca_selection = pca_selection,
+  input = input, classification = classification, selection = selection,
+  acc = acc, icc = icc, differences = differences,
+  flash_rules = flash_rules, standard_rules = standard_rules,
+  comparison = comparison), file.path(directory, "full_workflow.rds"))
+write.csv(classification$eval_table, file.path(directory, "classification.csv"),
+  row.names = FALSE)
+write.csv(classification$gene_ids_table, file.path(directory, "sampled_gene_ids.csv"),
+  row.names = FALSE)
+write.csv(selected_expression, file.path(directory, "selected_expression.csv"))
+write.csv(acc$results, file.path(directory, "acc.csv"), row.names = FALSE)
+write.csv(icc$correlation_matrix_cond1, file.path(directory, "icc_FLASH.csv"))
+write.csv(icc$correlation_matrix_cond2, file.path(directory, "icc_STANDARD.csv"))
+write.csv(differences$difference_table, file.path(directory, "icc_differences.csv"),
+  row.names = FALSE)
+write.csv(flash_rules$rules_df, file.path(directory, "FLASH_rules.csv"),
+  row.names = FALSE)
+write.csv(standard_rules$rules_df, file.path(directory, "STANDARD_rules.csv"),
+  row.names = FALSE)
+write.csv(comparison$shared_rules, file.path(directory, "shared_rules.csv"),
+  row.names = FALSE)
+write.csv(comparison$unique_rules_condition1,
+  file.path(directory, "unique_FLASH_rules.csv"), row.names = FALSE)
+write.csv(comparison$unique_rules_condition2,
+  file.path(directory, "unique_STANDARD_rules.csv"), row.names = FALSE)
+capture.output(sessionInfo(), file = file.path(directory, "sessionInfo.txt"))
+list.files(directory)
+```
+
+For returned ggplots, use `ggplot2::ggsave()`; for numeric matrices, use
+`write.csv()`. To capture all static plots from a run, open
+`pdf("figures.pdf", width = 10, height = 7)` before plotting stages and call
+`dev.off()` afterward. Interactive plots require their own export method and
+are not automatically included in that PDF.
+
+```{r reload, eval=FALSE}
+stored <- readRDS(file.path(directory, "full_workflow.rds"))
+stored$selection$selected_gene_ids
+ggplot2::ggsave(file.path(directory, "accuracies.png"),
+  plot = selection$plot, width = 8, height = 5, dpi = 300)
+ggplot2::ggsave(file.path(directory, "acc.png"),
+  plot = acc$plot, width = 8, height = 5, dpi = 300)
+```
+
+# Full reference and troubleshooting
+
+This tutorial was developed from the descriptions and parameter documentation
+in the package's `R/` and `man/` files, checked against the current implementation
+and the dissertation's methodology, examples and Appendix A (printed pages
+93–99). Descriptions follow the code: for example, `method = "scale"` does not
+center values and therefore does not automatically produce z-scores, despite
+the wording used in the older dissertation. The original scaling convention
+is preserved and documented precisely.
+
+Each function also has conventional R documentation with **Usage, Arguments,
+Value and Examples**. In RStudio, open it with `?function_name`:
+
+```{r help, eval=FALSE}
+?normalize_count_matrix
+?classification_approach_advanced
+?mine_gene_associations
+browseVignettes("MettleRNASeq")
+```
+
+| Situation | What to check |
+|:--|:--|
+| Metadata and matrix do not match | Exact unique names, metadata row order, and samples removed during filtering. |
+| No genes remain after normalization | Raw input values, `min_count`, `group_size` and constant genes. |
+| Classification fails | Reported algorithm/resample/partition, installed engine, valid tuning grid and `status_table`. |
+| No genes remain after selection | Selected IDs, cutoff, union/intersection and recorded scores. |
+| Correlation is `NA` | Constant genes, too few observations or unsuitable input; do not automatically replace with zero. |
+| No rules | Support, confidence, lift, rule length and target filters; an empty set can be valid. |
+| Too many rules or slow mining | Gene universe, state definitions, thresholds and `maxlen`; `top_n` only reduces the plot. |
+| Different results after changing options | Normalization, PCA centering/scaling, PCs, gene draws, engine/grid, union/intersection and states are analytical choices. |
+
+## Function signatures and installed default values
+
+The following signatures are obtained from the installed package while building
+this manual. Arguments without defaults must be supplied. Consult the respective
+stage above for guidance; you need not repeat arguments whose defaults you want.
+
+```{r signatures, echo=FALSE, results='asis'}
+functions <- c("normalize_count_matrix", "compute_distance_matrix", "pca_analysis",
+  "feature_selection_pca", "prepare_input_matrix", "classification_approach_advanced",
+  "genes_from_classification_results", "acc_analysis", "icc_analysis",
+  "icc_difference", "mine_gene_associations", "compare_gene_rules")
+for (name in functions) {
+  cat("\n### ", name, "\n\n```r\n", sep = "")
+  signature <- capture.output(args(getExportedValue("MettleRNASeq", name)))
+  cat(paste(head(signature, -1), collapse = "\n"), "\n```\n\n", sep = "")
+}
+```
+
+For reproducibility, save input data, metadata, parameters, seed, package
+version and `sessionInfo()`. The tutorial demonstrates software behavior;
+scientific analyses require justified choices and biological evaluation.
+See the original method preprint, doi:10.1101/2025.05.06.652387, and the author's
+dissertation for its research context.

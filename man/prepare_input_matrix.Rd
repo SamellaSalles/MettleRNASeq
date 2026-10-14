@@ -14,7 +14,7 @@ prepare_input_matrix(
 )
 }
 \arguments{
-\item{count_matrix}{A matrix or data frame of count data, where rows are genes and columns are samples.}
+\item{count_matrix}{A numeric matrix or data frame with genes on one axis and samples on the other. Sample labels must match exactly one axis; orientation is determined from those labels.}
 
 \item{design_table}{A data frame containing sample and condition information. Default is NULL.}
 
@@ -27,8 +27,9 @@ prepare_input_matrix(
 \item{condition_vector}{A vector of condition names corresponding to \code{sample_vector}. Default is NULL.}
 }
 \value{
-A data frame in wide format with genes as rows, replicates as columns (named "Rep1", "Rep2", etc.),
-and conditions as the last column.
+A data frame with one row per gene and condition, a Gene column,
+replicate columns named Rep_1, Rep_2, etc., and a final Condition column.
+Its sample_map attribute links each condition/replicate slot to its original sample ID.
 }
 \description{
 This function prepares an input matrix for classification by organizing count data

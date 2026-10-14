@@ -1,0 +1,29 @@
+MettleRNASeq MSc bone example
+
+Files: mestrado_bone_expression.csv and mestrado_bone_metadata.csv
+Dimensions: 8 samples, 235 genes; FLASH and STANDARD, 4 replicates each.
+Species: Mus musculus. Tissue: bone.
+Public source accession: GSE173944.
+Original study: Velalopoulou et al. (2021), Cancer Research,
+doi:10.1158/0008-5472.CAN-21-1500.
+MettleRNASeq methodological context: bioRxiv doi:10.1101/2025.05.06.652387.
+
+This is the processed B4.csv matrix supplied with Samella Salles' MSc project.
+The original values are normalized and the genes are already preselected.
+They are NOT raw integer counts and do not represent the complete transcriptome.
+Only the table layout was changed: genes were aligned by ID and expression
+was reshaped into samples in rows and genes in columns. No values were rescaled,
+rounded, filtered, or recomputed during this conversion.
+F1B-F4B correspond to FLASH and S1B-S4B to STANDARD. B denotes bone.
+
+Original B4.csv SHA256:
+32881b881120da6563118ec149467d07f2bc14b4b44baa3f20761bac57039482
+Reshaped expression CSV SHA256:
+9a5a42be35ab188fc6f1aad961f8a5237f46a575a5380b76c9987f3de78cd3ff
+
+Use this subset to learn the software. Do not normalize it again, estimate
+genome-wide differential expression from it, or treat the quick example as
+a reproduction of the complete published biological analysis.
+For a complete reanalysis start from the original count matrices and metadata.
+Attribution to the original study and to the MettleRNASeq processing should
+accompany reuse of this example. Confirm redistribution terms before a release.

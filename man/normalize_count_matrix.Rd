@@ -17,7 +17,7 @@ normalize_count_matrix(
 
 \item{remove_low_variance}{Logical. If \code{TRUE}, genes with zero variance across samples are removed. Default is \code{TRUE}.}
 
-\item{min_count}{Numeric. The minimum count threshold for a gene to be retained. Genes with counts below this threshold in at least \code{group_size} samples are removed. Default is \code{10}.}
+\item{min_count}{Numeric. The minimum count threshold for a gene to be retained. Genes must meet this threshold in at least \code{group_size} samples to be retained. Default is \code{10}.}
 
 \item{group_size}{Numeric. The minimum number of samples where a gene must meet the \code{min_count} threshold to be retained. Default is \code{4}.}
 
@@ -41,7 +41,7 @@ The function performs the following steps:
 \itemize{
 \item \strong{TMM}: Trimmed Mean of M-values normalization (edgeR).
 \item \strong{DESeq2}: Size factor normalization (DESeq2).
-\item \strong{scale}: Column-wise scaling (mean-centered and scaled to unit variance).
+\item \strong{scale}: Non-centered column-wise scaling, preserving the original scale(center = FALSE, scale = TRUE) convention.
 }
 }
 }

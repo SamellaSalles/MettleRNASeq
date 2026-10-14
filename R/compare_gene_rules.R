@@ -9,6 +9,7 @@
 #' @param rules_df2 A data frame of association rules from condition 2. Must contain columns `LHS` and `RHS`.
 #' @param condition_names A character vector of length 2 indicating the names of the two conditions. Defaults to `c("Condition1", "Condition2")`.
 #' @param layout_type A character string indicating the layout for plotting. Use `"linear"` for arc diagrams (default) or `"fr"` for Fruchterman-Reingold force-directed layout.
+#' @param comparison Compare complete gene sets (genes, default, as in the original relationship-focused approach), or complete expression-state itemsets (items). Metrics do not define rule identity. Original rule tables and gene-projection graphs are also returned.
 #' @param plot Logical; if `TRUE`, plots the shared and unique rule graphs. Default is `TRUE`.
 #'
 #' @return A list with the following components:
@@ -30,88 +31,77 @@
 #'                    condition_names = c("F", "S"), plot = TRUE)
 #' }
 #'
-#' @import igraph
-#' @import dplyr
-#' @import ggraph
-#' @import RColorBrewer
-#' @import ggplot2
 #' @export
-compare_gene_rules <- function(rules_df1, rules_df2,
-                               condition_names = c("Condition1", "Condition2"),
-                               plot = TRUE,
-							   layout_type = "linear") {
-  # Load required libraries
-  library(igraph)
-  library(dplyr)
-  library(RColorBrewer)
-  library(ggraph)
-  library(ggplot2)
-  
-  # Clean LHS and RHS
-  rules_df1 <- rules_df1 %>%
-    mutate(LHS = gsub("\\=.*", "", LHS),
-           RHS = gsub("\\=.*", "", RHS))
-  rules_df2 <- rules_df2 %>%
-    mutate(LHS = gsub("\\=.*", "", LHS),
-           RHS = gsub("\\=.*", "", RHS))
-  
-  # Compare rules
-  shared_rules <- intersect(rules_df1, rules_df2)[, c("LHS", "RHS")]
-  unique_rules1 <- setdiff(rules_df1, rules_df2)[, c("LHS", "RHS")]
-  unique_rules2 <- setdiff(rules_df2, rules_df1)[, c("LHS", "RHS")]
-  
-  # Helper to plot and extract cluster info
-  process_rule_graph <- function(df) {
-    if (nrow(df) == 0) return(list(plot = NULL, clusters = NULL))
-    
-    g <- graph_from_data_frame(df, directed = TRUE)
-    com <- cluster_walktrap(g)
-    mem <- membership(com)
-    
-    mycolor <- brewer.pal(n = max(mem), name = "Paired")
-    V(g)$color <- mycolor[mem]
-    
-    plot <- ggraph(g, layout = layout_type) +
-      geom_edge_arc(edge_colour = "black", edge_alpha = 0.2, edge_width = 0.3, fold = TRUE) +
-      geom_node_point(aes(size = 5, color = as.factor(color), fill = color), alpha = 0.5) +
-      scale_size_continuous(range = c(0.5, 8)) +
-      scale_color_manual(values = mycolor) +
-      geom_node_text(aes(label = name), angle = 65, hjust = 1, nudge_y = -0.3, size = 2.3) +
-      theme_void() +
-      theme(legend.position = "none",
-            plot.margin = unit(c(0, 0, 0.4, 0), "null"),
-            panel.spacing = unit(c(0, 0, 3.4, 0), "null")) +
-      expand_limits(x = c(-1.2, 1.2), y = c(-5.6, 1.2))
-    
-    list(plot = plot, clusters = data.frame(Gene = names(mem), Cluster = mem))
+compare_gene_rules <- function(rules_df1, rules_df2, condition_names = c("Condition1", "Condition2"),
+                               plot = TRUE, layout_type = "linear",
+                               comparison = c("genes", "items")) {
+  comparison <- match.arg(comparison)
+  if (length(condition_names) != 2L || anyNA(condition_names)) stop("Supply two condition_names.")
+  if (!is.logical(plot) || length(plot) != 1L || is.na(plot)) stop("plot must be TRUE or FALSE.")
+  parse_side <- function(x) {
+    x <- trimws(x)
+    x <- sub("^\\{", "", x); x <- sub("\\}$", "", x)
+    # Interval labels contain commas, so split only before a new gene=item token.
+    if (!nzchar(x)) return(character())
+    items <- trimws(strsplit(x, ",(?=\\s*[^,={}]+\\s*=)", perl = TRUE)[[1]])
+    if (comparison == "genes") {
+      if (!any(grepl("=", items, fixed = TRUE))) items <- trimws(strsplit(x, ",", fixed = TRUE)[[1]])
+      items <- trimws(sub("=.*$", "", items))
+    }
+    sort(unique(items))
   }
-  
-  # Generate plots and clusters
-  shared_res <- process_rule_graph(shared_rules)
-  unique1_res <- process_rule_graph(unique_rules1)
-  unique2_res <- process_rule_graph(unique_rules2)
-  
-  # Optionally plot
+  canonical <- function(df) {
+    if (!is.data.frame(df)) stop("Rule inputs must be data frames.")
+    if (!nrow(df)) return(data.frame(LHS = character(), RHS = character()))
+    if (!all(c("LHS", "RHS") %in% names(df)) || anyNA(df$LHS) || anyNA(df$RHS)) stop("Rule tables require LHS and RHS without NA.")
+    out <- data.frame(LHS = vapply(as.character(df$LHS), function(x) paste0("{", paste(parse_side(x), collapse = ","), "}"), character(1)),
+      RHS = vapply(as.character(df$RHS), function(x) paste0("{", paste(parse_side(x), collapse = ","), "}"), character(1)))
+    unique(out)
+  }
+  first <- canonical(rules_df1); second <- canonical(rules_df2)
+  # Only the canonical itemsets define identity, never support/confidence/lift.
+  keys <- function(df) paste(df$LHS, df$RHS, sep = "\r")
+  common <- keys(first) %in% keys(second)
+  shared <- first[common, , drop = FALSE]
+  unique1 <- first[!common, , drop = FALSE]
+  unique2 <- second[!keys(second) %in% keys(first), , drop = FALSE]
+  process <- function(df) {
+    if (!nrow(df)) return(list(plot = NULL, clusters = data.frame(Gene = character(), Cluster = integer()), graph = NULL))
+    # Project every antecedent/consequent member to the gene graph; keep the
+    # complete original rule separately so this projection does not erase it.
+    edges <- do.call(rbind, lapply(seq_len(nrow(df)), function(i) {
+      left <- parse_side(df$LHS[i]); right <- parse_side(df$RHS[i])
+      left <- unique(sub("=.*$", "", left)); right <- unique(sub("=.*$", "", right))
+      if (!length(left) || !length(right)) return(NULL)
+      expand.grid(from = left, to = right, stringsAsFactors = FALSE)
+    }))
+    if (is.null(edges) || !nrow(edges)) return(list(plot = NULL, clusters = data.frame(Gene = character(), Cluster = integer()), graph = NULL))
+    graph <- igraph::graph_from_data_frame(unique(edges), directed = TRUE)
+    mem <- igraph::membership(igraph::cluster_walktrap(graph))
+    clusters <- data.frame(Gene = names(mem), Cluster = as.integer(mem))
+    graph <- igraph::set_vertex_attr(graph, "Cluster", value = as.integer(mem))
+    p <- NULL
+    if (plot) {
+      colors <- grDevices::colorRampPalette(RColorBrewer::brewer.pal(12, "Paired"))(max(mem))
+      p <- ggraph::ggraph(graph, layout = layout_type)
+      p <- p + if (layout_type == "linear") ggraph::geom_edge_arc(alpha = .3) else ggraph::geom_edge_link(alpha = .3)
+      p <- p + ggraph::geom_node_point(ggplot2::aes(color = factor(.data$Cluster)), size = 3) +
+        ggraph::geom_node_text(ggplot2::aes(label = .data$name), repel = TRUE, size = 3) +
+        ggplot2::scale_color_manual(values = colors) + ggplot2::theme_void() +
+        ggplot2::theme(legend.position = "none")
+    }
+    list(plot = p, clusters = clusters, graph = graph)
+  }
+  results <- list(shared = process(shared), condition1 = process(unique1), condition2 = process(unique2))
   if (plot) {
-    print(shared_res$plot + ggtitle(paste("Shared Rules -", paste(condition_names, collapse = " vs "))))
-    print(unique1_res$plot + ggtitle(paste("Unique Rules -", condition_names[1])))
-    print(unique2_res$plot + ggtitle(paste("Unique Rules -", condition_names[2])))
+    titles <- c(paste("Shared Rules -", paste(condition_names, collapse = " vs ")),
+                paste("Unique Rules -", condition_names[1]), paste("Unique Rules -", condition_names[2]))
+    for (i in seq_along(results)) if (!is.null(results[[i]]$plot)) print(results[[i]]$plot + ggplot2::ggtitle(titles[i]))
   }
-  
-  # Return full result
-  list(
-    shared_rules = shared_rules,
-    unique_rules_condition1 = unique_rules1,
-    unique_rules_condition2 = unique_rules2,
-    clusters = list(
-      shared = shared_res$clusters,
-      condition1 = unique1_res$clusters,
-      condition2 = unique2_res$clusters
-    ),
-    plots = list(
-      shared_plot = shared_res$plot,
-      unique_plot_condition1 = unique1_res$plot,
-      unique_plot_condition2 = unique2_res$plot
-    )
-  )
+  list(shared_rules = shared, unique_rules_condition1 = unique1, unique_rules_condition2 = unique2,
+    clusters = lapply(results, `[[`, "clusters"),
+    plots = list(shared_plot = results$shared$plot, unique_plot_condition1 = results$condition1$plot,
+                 unique_plot_condition2 = results$condition2$plot),
+    graphs = lapply(results, `[[`, "graph"), comparison = comparison,
+    original_rules = list(condition1 = rules_df1, condition2 = rules_df2))
 }

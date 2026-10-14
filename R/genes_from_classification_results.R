@@ -34,6 +34,8 @@
 #' based on the partitions (Train/Test splits).
 #' @param show_legend Logical. Whether to show the plot legend (default = TRUE).
 #'
+#' @param algorithm Optional algorithm names to use for selection and plotting. With NULL, selection is the union of qualifying resamples across algorithms; plot panels remain separate.
+#' @param gene_ids_table Optional gene-ID table from classification. By default, identity metadata on genes_table is used; old tables fall back to positional selection.
 #' @return A list with:
 #' \itemize{
 #'   \item \code{selected_resamples}: The resamples used to select genes.
@@ -56,149 +58,103 @@
 #'   plot_resamples_only = TRUE,
 #'   hline_yintercept = 0.7,
 #'   median_color = "#f57600",
-#'   test_colors = c("#f57600", "green", "red", "purple"))
+#'   test_colors = c("#f57600", "green", "red", "purple")
 #' )
 #' }
 #'
 #' @export
-genes_from_classification_results <- function(eval_table,
-                                              genes_table,
-                                              count_matrix,
-                                              resamples = NULL,
-                                              cutoff = NULL,
+genes_from_classification_results <- function(eval_table, genes_table, count_matrix,
+                                              resamples = NULL, cutoff = NULL,
                                               metric_column = "summary_test_accuracy",
-                                              selection_mode = "unique",
-                                              partition_table = NULL,
-                                              plot_type = "summary",  # "all", "summary", or "both"
-                                              plot_resamples_only = TRUE,
-                                              return_plot = TRUE,
-                                              hline_yintercept = 0.7,
-                                              hline_color = "black",
-                                              median_color = "#f57600",
-                                              test_colors = NULL,
-                                              show_legend = TRUE) {
-  library(dplyr)
-  library(ggplot2)
-  
-  # --- Validations ---
-  if (is.null(resamples) && is.null(cutoff)) {
-    stop("Provide either resamples or a cutoff.")
+                                              selection_mode = "unique", partition_table = NULL,
+                                              plot_type = "summary", plot_resamples_only = TRUE,
+                                              return_plot = TRUE, hline_yintercept = 0.7,
+                                              hline_color = "black", median_color = "#f57600",
+                                              test_colors = NULL, show_legend = TRUE,
+                                              algorithm = NULL, gene_ids_table = NULL) {
+  selection_mode <- match.arg(selection_mode, c("unique", "intersect"))
+  plot_type <- match.arg(plot_type, c("summary", "all", "both"))
+  if (!is.data.frame(eval_table) || !is.data.frame(genes_table)) stop("eval_table and genes_table must be data frames.")
+  names(eval_table) <- tolower(names(eval_table)); metric_column <- tolower(metric_column)
+  if (!"resample" %in% names(eval_table)) stop("eval_table must contain resample.")
+  if (!"algorithm" %in% names(eval_table)) eval_table$algorithm <- "classification"
+  if (!is.null(algorithm)) {
+    if (!all(algorithm %in% eval_table$algorithm)) stop("Unknown algorithm in eval_table.")
+    eval_table <- eval_table[eval_table$algorithm %in% algorithm, , drop = FALSE]
   }
-  
-  colnames(eval_table) <- tolower(colnames(eval_table))
-  metric_column <- tolower(metric_column)
-  
-  if (!(metric_column %in% colnames(eval_table))) {
-    stop(paste("Column", metric_column, "not found in eval_table."))
-  }
-  
-  if (plot_type %in% c("all", "both") && is.null(partition_table)) {
-    stop("partition_table is required when plotting individual test accuracies.")
-  }
-  
-  # --- Get resamples ---
-  selected_resamples <- if (!is.null(resamples)) {
-    unique(resamples)
+  if (is.null(resamples)) {
+    if (is.null(cutoff) || length(cutoff) != 1L || !is.numeric(cutoff) || !is.finite(cutoff)) stop("Supply resamples or a finite cutoff.")
+    if (!metric_column %in% names(eval_table)) stop("Metric column not found in eval_table.")
+    keep <- is.finite(eval_table[[metric_column]]) & eval_table[[metric_column]] >= cutoff
+    if ("status" %in% names(eval_table)) keep <- keep & eval_table$status == "ok"
+    selected_resamples <- unique(eval_table$resample[keep])
   } else {
-    unique(eval_table$resample[eval_table[[metric_column]] >= cutoff])
+    if (!is.numeric(resamples) || anyNA(resamples) || any(!is.finite(resamples)) ||
+        any(resamples < 1L | resamples != floor(resamples))) stop("resamples must contain positive integer IDs.")
+    selected_resamples <- unique(resamples)
   }
-  
-  if (length(selected_resamples) == 0) {
-    stop("No resamples passed the condition.")
-  }
-  
-  # --- Extract gene positions ---
-  selected_columns <- paste0("Resample_", selected_resamples)
-  if (!all(selected_columns %in% colnames(genes_table))) {
-    stop("Some selected resamples not found in genes_table.")
-  }
-  
-  selected_gene_matrix <- genes_table[, selected_columns, drop = FALSE]
-  
-  selected_positions <- if (selection_mode == "unique") {
-    unique(unlist(selected_gene_matrix))
-  } else if (selection_mode == "intersect") {
-    Reduce(intersect, as.list(selected_gene_matrix))
+  if (!length(selected_resamples)) stop("No resamples passed the condition.")
+  columns <- paste0("Resample_", selected_resamples)
+  if (!all(columns %in% names(genes_table))) stop("Some selected resamples not found in genes_table.")
+  x <- .mettle_numeric_matrix(count_matrix, "count_matrix")
+  if (is.null(gene_ids_table)) gene_ids_table <- attr(genes_table, "gene_ids")
+  combine <- function(values) if (selection_mode == "unique") unique(unlist(values, use.names = FALSE)) else Reduce(intersect, values)
+  if (!is.null(gene_ids_table)) {
+    if (!is.data.frame(gene_ids_table) || !all(columns %in% names(gene_ids_table))) stop("gene_ids_table must contain every selected resample.")
+    ids <- as.character(combine(lapply(gene_ids_table[, columns, drop = FALSE], as.character)))
+    .mettle_names(colnames(x), "Gene column names")
+    if (anyNA(ids) || !all(ids %in% colnames(x))) stop("Selected gene IDs do not match count_matrix columns.")
+    positions <- match(ids, colnames(x))
   } else {
-    stop("selection_mode must be 'unique' or 'intersect'")
+    # Compatibility for old positional tables, which have no identity metadata.
+    positions <- combine(as.list(genes_table[, columns, drop = FALSE]))
+    if (!is.numeric(positions) || anyNA(positions) || any(!is.finite(positions)) ||
+        any(positions < 1 | positions != floor(positions) | positions > ncol(x))) stop("Invalid gene positions for count_matrix.")
+    ids <- colnames(x)[positions]
   }
-  
-  # --- Filter count_matrix (columns only) ---
-  if (any(selected_positions > ncol(count_matrix))) {
-    stop("Some gene positions exceed column count of count_matrix.")
-  }
-  
-  filtered_matrix <- as.matrix(count_matrix[, selected_positions, drop = FALSE])
-  
-  # --- Plotting ---
+  filtered <- as.data.frame(x[, positions, drop = FALSE])
   plot_obj <- NULL
   if (return_plot) {
-    plot_data <- if (plot_resamples_only) {
-      eval_table %>% filter(resample %in% selected_resamples)
-    } else {
-      eval_table
-    }    
-    # Join with partition_table to get test split IDs
-    if (!is.null(partition_table)) {
-      partition_table <- partition_table %>%
-        mutate(data_split = row_number(),
-               Partition_Label = paste0("Train: [", Train_Splits, "] | Test: [", Test_Splits, "]"))
-      plot_data <- left_join(plot_data, partition_table, by = "data_split")
+    plot_data <- if (plot_resamples_only) eval_table[eval_table$resample %in% selected_resamples, , drop = FALSE] else eval_table
+    if (plot_type %in% c("all", "both")) {
+      if (is.null(partition_table) || !all(c("Train_Splits", "Test_Splits") %in% names(partition_table))) stop("partition_table is required for individual test accuracies.")
+      if (!"data_split" %in% names(plot_data) || anyNA(plot_data$data_split) ||
+          any(plot_data$data_split < 1 | plot_data$data_split > nrow(partition_table))) stop("Invalid data_split values.")
+      plot_data$Partition_Label <- paste0("Train: [", partition_table$Train_Splits[plot_data$data_split],
+        "] | Test: [", partition_table$Test_Splits[plot_data$data_split], "]")
     }
-    
-    # Build plot
-    p <- ggplot()
-    
-    # --- Plot individual test points by partition split ---
-    if (plot_type %in% c("all", "both") && "test_accuracy" %in% colnames(plot_data)) {
-      p <- p + geom_point(aes(x = factor(resample),
-                              y = test_accuracy,
-                              color = Partition_Label),
-                          data = plot_data,
-                          size = 2,
-                          alpha = 0.7)
+    p <- ggplot2::ggplot()
+    if (plot_type %in% c("all", "both")) {
+      if (!"test_accuracy" %in% names(plot_data)) stop("test_accuracy is required for individual plots.")
+      p <- p + ggplot2::geom_point(data = plot_data,
+        ggplot2::aes(x = factor(.data$resample), y = .data$test_accuracy, color = .data$Partition_Label), size = 2, alpha = .7)
     }
-    
-    # --- Plot summary accuracy per resample ---
-    if (plot_type %in% c("summary", "both") && "summary_test_accuracy" %in% colnames(plot_data)) {
-      summary_df <- plot_data %>%
-        group_by(resample) %>%
-        summarise(summary = median(test_accuracy, na.rm = TRUE))
-      
-      p <- p +
-        geom_line(data = summary_df, aes(x = factor(resample), y = summary, group = 1),
-                  color = median_color, linewidth = 1) +
-        geom_point(data = summary_df, aes(x = factor(resample), y = summary),
-                   color = median_color, size = 2)
+    if (plot_type %in% c("summary", "both")) {
+      if (!"summary_test_accuracy" %in% names(plot_data)) stop("summary_test_accuracy is required for summary plots.")
+      summary_df <- unique(plot_data[, c("algorithm", "resample", "summary_test_accuracy"), drop = FALSE])
+      if (anyDuplicated(summary_df[,c("algorithm", "resample")])) stop("Inconsistent summary values for an algorithm/resample pair.")
+      summary_df <- summary_df[order(summary_df$algorithm, summary_df$resample), , drop = FALSE]
+      p <- p + ggplot2::geom_line(data = summary_df,
+        ggplot2::aes(x = factor(.data$resample), y = .data$summary_test_accuracy, group = .data$algorithm), color = median_color, linewidth = 1) +
+        ggplot2::geom_point(data = summary_df,
+          ggplot2::aes(x = factor(.data$resample), y = .data$summary_test_accuracy), color = median_color, size = 2)
     }
-    
-    p <- p +
-      geom_hline(yintercept = hline_yintercept,
-                 linetype = "dashed", color = hline_color, size = 0.6) +
-      labs(x = "Resample", y = "Accuracy", title = "Classification Accuracy by Resample") +
-      theme_bw()
-    
-    if (plot_type %in% c("all", "both") && !is.null(partition_table)) {
-      if (!is.null(test_colors)) {
-        p <- p + scale_color_manual(name = "Partition", values = test_colors)
-      } else {
-        p <- p + scale_color_brewer(name = "Partition", palette = "Set1")
+    p <- p + ggplot2::geom_hline(yintercept = hline_yintercept, linetype = "dashed", color = hline_color, linewidth = .6) +
+      ggplot2::labs(x = "Resample", y = "Accuracy", title = "Classification Accuracy by Resample") + ggplot2::theme_bw()
+    if (length(unique(plot_data$algorithm)) > 1L) p <- p + ggplot2::facet_wrap(~algorithm)
+    if (plot_type %in% c("all", "both")) {
+      labels <- unique(plot_data$Partition_Label)
+      colors <- if (is.null(test_colors)) grDevices::hcl.colors(length(labels), "Dark 3") else test_colors
+      if (is.null(names(colors))) {
+        if (length(colors) < length(labels)) stop("Not enough test_colors for partitions.")
+        colors <- colors[seq_along(labels)]
+        names(colors) <- labels
       }
+      p <- p + ggplot2::scale_color_manual(name = "Partition", values = colors)
     }
-    
-    if (!show_legend) {
-      p <- p + theme(legend.position = "none")
-    }
-    
-    print(p)
-    plot_obj <- p
+    if (!show_legend) p <- p + ggplot2::theme(legend.position = "none")
+    print(p); plot_obj <- p
   }
-  
-  # --- Return ---
-  return(list(
-    selected_resamples = selected_resamples,
-    selected_gene_positions = selected_positions,
-    filtered_matrix = as.data.frame(filtered_matrix),
-    plot = plot_obj
-  ))
+  list(selected_resamples = selected_resamples, selected_gene_positions = positions,
+    filtered_matrix = filtered, plot = plot_obj, selected_gene_ids = ids)
 }

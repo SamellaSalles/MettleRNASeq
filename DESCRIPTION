@@ -1,6 +1,6 @@
 Package: MettleRNASeq
 Title: Machine-Learning-Assisted Analysis of Complex RNA-Seq Datasets
-Version: 1.0.0
+Version: 1.0.0.9000
 Authors@R: person(
         given = "Samella",
         family = "Salles",
@@ -30,7 +30,6 @@ Imports:
     corrplot,
     DESeq2,
     dplyr,
-    e1071,
     edgeR,
     factoextra,
     ggplot2,
@@ -38,17 +37,26 @@ Imports:
     igraph,
     pheatmap,
     plotly,
-    pROC,
     RColorBrewer,
     rlang,
     stats,
     tidyr,
-    utils
+    utils,
+    methods,
+    grid,
+    graphics
 Suggests:
+    e1071,
+    randomForest,
+    ranger,
+    htmlwidgets,
     knitr,
     pkgdown,
     rmarkdown,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
+Enhances: fim4r
 NeedsCompilation: no
 Config/roxygen2/version: 8.0.0
+RoxygenNote: 7.3.3
+VignetteBuilder: knitr

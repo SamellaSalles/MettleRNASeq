@@ -43,6 +43,9 @@ icc_analysis <- function(data, condition_split,
                          number.cex = 0.7,
                          order = c("AOE", "FPC", "hclust", "alphabet")) {
   
+  data <- .mettle_numeric_matrix(data)
+  .mettle_split(data, condition_split)
+  method <- match.arg(method, c("spearman", "pearson", "kendall"))
   # Validate input structure
   if (nrow(data) <= 1 || ncol(data) <= 1) {
     stop("Data must have >1 row (samples) and >1 column (genes). Genes must be in columns.")

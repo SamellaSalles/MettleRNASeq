@@ -60,13 +60,9 @@ compute_distance_matrix <- function(count_matrix, use_correlation = FALSE, metho
                                     cluster_rows = TRUE, cluster_cols = TRUE, clustering_method = "complete", display_numbers = FALSE, 
                                     number_color = "black", color_palette = c("#05287A", "#DCEEF0"), breaks = 50, main_title = NULL) {
   # Load necessary libraries
-  require(pheatmap)
-  require(corrplot)
   
   # Ensure count_matrix is a data frame with samples as rows and genes as columns
-  if (!is.data.frame(count_matrix)) {
-    stop("Error: count_matrix must be a data frame with samples as row names and genes as columns.")
-  }
+  count_matrix <- as.data.frame(.mettle_numeric_matrix(count_matrix, "count_matrix"))
   
   # Ensure row names are preserved
   if (is.null(rownames(count_matrix))) {
@@ -77,7 +73,7 @@ compute_distance_matrix <- function(count_matrix, use_correlation = FALSE, metho
   if (use_correlation) {
     # Transpose the matrix for correlation (genes as rows, samples as columns)
     cor_matrix <- cor(t(count_matrix), method = correlation_method)
-    dist_matrix <- as.dist(1 - cor_matrix)  # Convert correlation to distance
+    dist_matrix <- stats::as.dist(1 - cor_matrix)  # Convert correlation to distance
     dist_matrix <- as.matrix(dist_matrix)  # Convert to matrix for visualization
   } else {
     if (method %in% c("euclidean", "manhattan", "canberra", "minkowski")) {

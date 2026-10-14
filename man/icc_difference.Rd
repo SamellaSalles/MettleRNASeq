@@ -14,7 +14,8 @@ icc_difference(
   show_colnames = TRUE,
   cluster_rows = TRUE,
   cluster_cols = TRUE,
-  fontsize = 8
+  fontsize = 8,
+  unique_pairs = TRUE
 )
 }
 \arguments{
@@ -37,6 +38,8 @@ icc_difference(
 \item{cluster_cols}{Logical indicating whether to cluster columns (default: TRUE)}
 
 \item{fontsize}{Base fontsize for heatmap (default: 8)}
+
+\item{unique_pairs}{Return each undirected pair once, without self-pairs (default TRUE). FALSE preserves the legacy full table.}
 }
 \value{
 A list containing:

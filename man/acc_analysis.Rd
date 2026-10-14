@@ -29,11 +29,9 @@ acc_analysis(
 \item{plot}{Logical indicating whether to generate a bar plot. Default is FALSE.}
 
 \item{color}{Color for the plot elements. Specify either:
-\itemize{
-\item Single color (e.g., "steelblue") for all bars
-\item Vector of two colors (e.g., c("red", "blue")) for negative/positive correlations
-Default is c("red", "steelblue").
-}}
+- Single color (e.g., "steelblue") for all bars
+- Vector of two colors (e.g., c("red", "blue")) for negative/positive correlations
+Default is c("red", "steelblue").}
 
 \item{orientation}{Plot orientation: "vertical" (default) or "horizontal" (uses coord_flip()).}
 
@@ -52,6 +50,7 @@ A data frame containing genes and their correlation values, and optionally a ggp
 }
 \description{
 Calculates correlations between same genes across two different conditions and optionally plots the results.
+Rows must be biologically paired across conditions in the supplied order; equal group size alone does not establish pairing.
 Note: This function only works for comparing exactly 2 conditions at a time.
 }
 \examples{

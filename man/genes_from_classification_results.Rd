@@ -20,7 +20,9 @@ genes_from_classification_results(
   hline_color = "black",
   median_color = "#f57600",
   test_colors = NULL,
-  show_legend = TRUE
+  show_legend = TRUE,
+  algorithm = NULL,
+  gene_ids_table = NULL
 )
 }
 \arguments{
@@ -68,6 +70,10 @@ If FALSE, all resamples from \code{eval_table} are shown.}
 based on the partitions (Train/Test splits).}
 
 \item{show_legend}{Logical. Whether to show the plot legend (default = TRUE).}
+
+\item{algorithm}{Optional algorithm names to use for selection and plotting. With NULL, selection is the union of qualifying resamples across algorithms; plot panels remain separate.}
+
+\item{gene_ids_table}{Optional gene-ID table from classification. By default, identity metadata on genes_table is used; old tables fall back to positional selection.}
 }
 \value{
 A list with:
@@ -97,7 +103,7 @@ result <- genes_from_classification_results(
   plot_resamples_only = TRUE,
   hline_yintercept = 0.7,
   median_color = "#f57600",
-  test_colors = c("#f57600", "green", "red", "purple"))
+  test_colors = c("#f57600", "green", "red", "purple")
 )
 }
 

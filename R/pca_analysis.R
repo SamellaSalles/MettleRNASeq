@@ -63,16 +63,9 @@
 #' @importFrom ggplot2 ggplot aes geom_point scale_color_manual scale_shape_manual theme_bw labs
 #' @export
 pca_analysis <- function(count_matrix, design_matrix = NULL, color_by = NULL, shape_by = NULL, center = TRUE, scale = FALSE, plot_cos2 = FALSE, plot_corrplot = NULL, plot_2d = TRUE, plot_3d = FALSE, gradient_cols = c("#00AFBB", "#E7B800", "#FC4E07")) {
-  # Load necessary libraries
-  require(factoextra)
-  require(plotly)
-  require(corrplot)
-  require(ggplot2)
   
   # Ensure count_matrix is a data frame with samples as rows and genes as columns
-  if (!is.data.frame(count_matrix)) {
-    stop("Error: count_matrix must be a data frame with samples as row names and genes as columns.")
-  }
+  count_matrix <- as.data.frame(.mettle_numeric_matrix(count_matrix, "count_matrix"))
   
   # Ensure row names are preserved
   if (is.null(rownames(count_matrix))) {
@@ -99,7 +92,7 @@ pca_analysis <- function(count_matrix, design_matrix = NULL, color_by = NULL, sh
       } else {
         stop(paste("Error: color_by column", color_by, "not found in design_matrix."))
       }
-    } else if (is.vector(color_by) && length(color_by) == nrow(count_matrix)) {
+    } else if (is.atomic(color_by) && length(color_by) == nrow(count_matrix)) {
       color_data <- color_by
       color_title <- deparse(substitute(color_by))
     } else {
@@ -119,7 +112,7 @@ pca_analysis <- function(count_matrix, design_matrix = NULL, color_by = NULL, sh
       } else {
         stop(paste("Error: shape_by column", shape_by, "not found in design_matrix."))
       }
-    } else if (is.vector(shape_by) && length(shape_by) == nrow(count_matrix)) {
+    } else if (is.atomic(shape_by) && length(shape_by) == nrow(count_matrix)) {
       shape_data <- shape_by
       shape_title <- deparse(substitute(shape_by))
     } else {
@@ -133,6 +126,8 @@ pca_analysis <- function(count_matrix, design_matrix = NULL, color_by = NULL, sh
   # Perform PCA
   pca_result <- prcomp(count_matrix, center = center, scale = scale)
   
+  if (plot_2d && ncol(pca_result$x) < 2L) stop("A 2D plot requires at least two principal components; set plot_2d = FALSE.")
+  if (plot_3d && ncol(pca_result$x) < 3L) stop("A 3D plot requires at least three principal components; set plot_3d = FALSE.")
   # Compute eigenvalues, variance, and cumulative variance
   eigenvalues <- get_eigenvalue(pca_result)
   variance <- eigenvalues$variance.percent
@@ -174,13 +169,13 @@ pca_analysis <- function(count_matrix, design_matrix = NULL, color_by = NULL, sh
       pca_data$Color <- color_data
     }
     if (!is.null(shape_data)) {
-      pca_data$Shape <- shape_data
+      pca_data$Shape <- factor(shape_data)
     }
     
     # Create the 2D PCA plot
-    pca_plot <- ggplot(pca_data, aes(x = PC1, y = PC2)) +
-      geom_point(aes(color = if (!is.null(color_data)) Color else NULL,
-                     shape = if (!is.null(shape_data)) Shape else NULL),
+    pca_plot <- ggplot(pca_data, aes(x = .data$PC1, y = .data$PC2)) +
+      geom_point(aes(color = if (!is.null(color_data)) .data$Color else NULL,
+                     shape = if (!is.null(shape_data)) .data$Shape else NULL),
                  size = 3) +
       theme_bw() +
       labs(title = "PCA Plot", 
@@ -192,7 +187,7 @@ pca_analysis <- function(count_matrix, design_matrix = NULL, color_by = NULL, sh
       n_colors <- length(unique(color_data))
       colors <- colorRampPalette(gradient_cols)(n_colors)
       pca_plot <- pca_plot + 
-        scale_color_manual(values = colors, name = color_title)
+        { if (is.numeric(color_data)) ggplot2::scale_color_gradientn(colours = gradient_cols, name = color_title) else scale_color_manual(values = colors, name = color_title) }
     }
     
     # Add custom shapes if specified
@@ -209,11 +204,9 @@ pca_analysis <- function(count_matrix, design_matrix = NULL, color_by = NULL, sh
   if (plot_3d) {
     pca_3d_data <- as.data.frame(pca_result$x)
     
-    if (!is.null(color_data)) {
-      pca_3d_data$Color <- color_data
-    }
+    pca_3d_data$Color <- if (is.null(color_data)) rep("Samples", nrow(pca_3d_data)) else color_data
     if (!is.null(shape_data)) {
-      pca_3d_data$Shape <- shape_data
+      pca_3d_data$Shape <- factor(shape_data)
     }
     
     # Create a unique set of shape labels (e.g., FA, SA, UB) only if shape_by is provided
@@ -221,14 +214,14 @@ pca_analysis <- function(count_matrix, design_matrix = NULL, color_by = NULL, sh
       unique_shapes <- unique(shape_data)
       
       # Map each unique shape to a plotly symbol
-      valid_symbols <- c("circle", "square", "diamond", "cross", "x", "triangle-up", "triangle-down", "pentagon", "hexagon", "star")
-      shape_symbol_map <- setNames(valid_symbols[1:length(unique_shapes)], unique_shapes)
+      valid_symbols <- rep(c("circle", "square", "diamond", "cross", "x"), length.out = length(unique_shapes))
+      shape_symbol_map <- setNames(valid_symbols, unique_shapes)
       
       # Assign symbols to each shape in the data
       marker_symbols <- shape_symbol_map[as.character(shape_data)]
       
       # Define the color scale
-      color_scale <- colorRampPalette(gradient_cols)(length(unique(color_data)))
+      color_scale <- colorRampPalette(gradient_cols)(length(unique(pca_3d_data$Color)))
       
       # Create the 3D plot
       pca_3d <- plot_ly(pca_3d_data, 
@@ -236,13 +229,13 @@ pca_analysis <- function(count_matrix, design_matrix = NULL, color_by = NULL, sh
                         color = ~Color,
                         colors = color_scale,
                         symbol = ~Shape,
-                        symbols = valid_symbols[1:length(unique_shapes)],
+                        symbols = valid_symbols,
                         text = rownames(pca_3d_data),  # Tooltip
                         type = 'scatter3d', 
                         mode = 'markers') 
       
       # Set the legend to use the custom shape labels
-      pca_3d <- pca_3d %>% layout(
+      pca_3d <- plotly::layout(pca_3d,
         legend = list(
           title = list(text = shape_title),
           itemsizing = 'constant',
@@ -266,7 +259,7 @@ pca_analysis <- function(count_matrix, design_matrix = NULL, color_by = NULL, sh
                         type = 'scatter3d', 
                         mode = 'markers') 
       
-      pca_3d <- pca_3d %>% layout(
+      pca_3d <- plotly::layout(pca_3d,
         scene = list(
           xaxis = list(title = paste0("PC1 (", round(variance[1], 2), "%)")),
           yaxis = list(title = paste0("PC2 (", round(variance[2], 2), "%)")),

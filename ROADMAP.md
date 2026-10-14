@@ -1,14 +1,16 @@
-# Roadmap
+# Maintenance priorities
 
-MettleRNASeq is under active maintenance. The current stable version provides a complete workflow for machine-learning-assisted analysis of complex RNA-seq datasets, including normalization, PCA-based feature selection, tailored classification with optional parallel execution, correlation analysis, association rule mining, and rule comparison. Current development focuses on improving documentation, usability, and long-term software maintenance.
+The current development work focuses on a usable package, documented behavior
+and a reproducible software paper, using existing MSc data.
 
-## Short-term improvements
-- Expanded user manual
-- pkgdown documentation website
+Before a release, review the paper, affiliation and contributor roles; confirm
+example-data redistribution terms; verify installation on a clean machine; and
+run the supplied GitHub Actions workflow. Record a tagged version and archive
+that actual release before assigning a software DOI.
 
-## Future directions
-- Additional case studies
-- Continuous integration with GitHub Actions
-- Bioconductor preparation
+Additional datasets, including maize, are optional later case studies. They
+should not delay the current documentation and software validation unless a
+chosen journal or an unresolved scientific question requires them.
 
-*Suggestions, bug reports, and contributions are welcome through the GitHub Issues page.*
+Method changes, new validation schemes and broad benchmarks belong to a
+separate explicitly documented development stage.
