@@ -50,6 +50,8 @@ small example and `sessionInfo()`. Use `citation("MettleRNASeq")` to cite the pa
 ## Author and acknowledgements
 
 **Author and maintainer:** Samella Salles.
+
 Otávio Brustolini, Luciane Ciapina and Kary Ocaña supervised the master's research
-underlying the package. Historical support from LNCC and CAPES, and discussions
-with Rebecca Salles, are acknowledged.
+underlying the package. 
+
+Historical support from LNCC and CAPES, and discussions with Rebecca Salles, are acknowledged.
