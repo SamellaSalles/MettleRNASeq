@@ -1,9 +1,9 @@
 # MettleRNASeq 1.0.0.9000
 
-* Preserve the dissertation's gene resampling, replicate-column partitions,
+* Retain default gene resampling, replicate-column partitions,
   internal training procedure, and gene identity predictor by default.
 * Fix classification with one resample and varying replicate counts. Evaluate
-  each held-out replicate independently using the original repeated-expression
+  each held-out replicate independently using the repeated-expression
   test representation; report its accuracy and the partition mean.
 * Match all bestTune parameters, record fit failures, and keep incomplete
   resample summaries missing. Stop on failed fits by default; an explicit
@@ -23,7 +23,7 @@
   documentation example. Add regression tests using real classification engines.
 * Pass support and confidence correctly to the FP-growth wrapper and require
   its optional backend explicitly. Fix PCA plot metadata and Plotly namespaces.
-* Add a runnable MSc bone example with unmodified processed values, provenance,
+* Add a runnable bone example with processed expression values, provenance,
   a synthetic raw-count example, a user vignette and contributor documentation.
 * Load mining dependencies explicitly without attaching packages to the search
   path. Add a GitHub Actions check workflow for future repository pushes.

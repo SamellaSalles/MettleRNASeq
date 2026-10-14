@@ -21,16 +21,15 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 8,
 Run the blocks in order in one R session, or use `inst/examples/step_by_step.R`.
 Each stage creates the input for the next. Optional blocks show alternatives.
 
-The sequence follows the MSc workflow: normalization → sample distances → PCA
+The workflow is: normalization → sample distances → PCA
 → PCA gene selection → input preparation → classification with gene resampling
 → classification-based selection → ACC → ICC → ICC differences → rules for
 each condition → rule comparison. Distances and ACC are complementary analyses:
 the distance matrix is not the PCA input, and ACC is not the ICC input.
 Both use the relevant expression matrix.
 
-This manual accompanies development version **1.0.0.9000**. The small example
-teaches and checks the software. It does not reproduce all experiments,
-parameter settings or scientific findings in the dissertation.
+Use the bundled example to learn the functions, then replace its matrix and
+metadata with your own data. Adjust parameters for your experimental design.
 
 # Installation and data layout
 
@@ -63,7 +62,7 @@ expression[1:3, 1:4]
 ```
 
 The example has eight samples, four FLASH and four STANDARD, and 235 genes
-from the MSc bone analysis. Values were reshaped from `B4.csv` without numerical
+from the bundled bone dataset. Values were reshaped from `B4.csv` without numerical
 changes. They are **already normalized and preselected**; do not normalize
 this matrix again or treat it as raw counts. The source study is Velalopoulou
 et al. (2021), doi:10.1158/0008-5472.CAN-21-1500, GEO GSE173944.
@@ -95,7 +94,7 @@ Normalization does not convert processed expression back into raw counts.
 | `group_size` | Minimum number of samples reaching `min_count`; default 4. This counts samples, not conditions. |
 | `remove_low_variance` | `TRUE` removes zero-variance genes; it does not apply a general low-variance threshold. |
 
-To demonstrate normalization without renormalizing the MSc example, generate
+To demonstrate normalization without renormalizing the bundled example, generate
 synthetic raw counts. Do not mix their outputs with the real example.
 
 ```{r normalize}
@@ -108,7 +107,7 @@ normalized_synthetic <- normalize_count_matrix(counts, method = "TMM",
 dim(normalized_synthetic)
 attr(normalized_synthetic, "removed_genes")
 attr(normalized_synthetic, "removed_samples")
-# Continue with the already normalized MSc matrix; do not normalize it again.
+# Continue with the already normalized example matrix; do not normalize it again.
 normalized <- expression
 ```
 
@@ -221,14 +220,12 @@ refined <- pca_selection$selected_count_matrix
 dim(refined)
 ```
 
-In the dissertation, four leading PCs and 100 genes per PC yielded 235 bone
-genes and 186 skin genes from the original matrices. The included bone matrix
-is **already preselected**. Selecting again demonstrates the function rather
-than reconstructing that selection from the full transcriptome.
-To repeat the original parameter choice, start with the corresponding full matrix:
+The bundled matrix is already preselected. This step demonstrates how PCA
+selection works. For your own data, apply it to the full normalized matrix.
+For example, to select 100 genes from each of four components:
 
 ```{r original-pca-settings, eval=FALSE}
-# full_normalized must come from the original full matrix, not the reduced example.
+# full_normalized must come from your full normalized matrix, not the reduced example.
 full_pca <- pca_analysis(full_normalized, plot_2d = FALSE)
 refined_matrix <- feature_selection_pca(full_pca$pca_result, full_normalized,
   num_pcs = 4, num_genes_per_pc = 100)
@@ -279,10 +276,10 @@ genes, partitions, sample identities and fitting failures.
 | `train_percentage` | Fraction of replicates for training; `.75` with four replicates gives three training and one test replicate. |
 | `metrics` | Currently only `"Accuracy"` is supported. |
 | `summary_stat` | `"median"` or `"mean"` to summarize partition test scores for each resample. |
-| `replace_genes` | `TRUE` permits repeated genes, as in the original procedure; `FALSE` requires enough available genes. |
+| `replace_genes` | `TRUE` permits repeated genes, as in the default procedure; `FALSE` requires enough available genes. |
 | `parallel` | Allows parallel model training; does not automatically configure a worker cluster. |
 | `seed` | Random seed for reproducibility in a compatible recorded environment. |
-| `include_gene` | `TRUE` preserves gene identity as a predictor in the original procedure. Setting `FALSE` changes the analysis. |
+| `include_gene` | `TRUE` preserves gene identity as a predictor in the default procedure. Setting `FALSE` changes the analysis. |
 | `error_handling` | `"stop"` reports the failed fit and stops; `"continue"` records failures and leaves incomplete summaries as `NA`. |
 
 ```{r classification}
@@ -306,10 +303,9 @@ samples; `status_table` records successes/failures; `models` stores trained
 models; `summary_stat` identifies the chosen summary.
 
 Four replicates and `.75` training give four partitions. Three resamples and
-one algorithm therefore produce twelve partition fits, each with its tuning
-grid. The dissertation explored 10–50 genes per resample and 100–10000
-resamples. These larger settings cost more and are unnecessary for learning
-the workflow. Runtime depends on the data, engine and tuning grid.
+one algorithm produce twelve partition fits, each with its tuning grid.
+Increase `num_resamples` to evaluate more gene sets and use `num_genes` to
+choose their size. Runtime depends on the data, engine and tuning grid.
 
 `mtry` is the number of predictors considered at each RF tree split; it is not
 the number of genes drawn, which is controlled by `num_genes`. The short
@@ -331,7 +327,7 @@ several_engines <- classification_approach_advanced(input,
 replicates are predictors. For each held-out replicate, its expression values
 are repeated into the training-column layout. If several replicates are held
 out, each is evaluated and their scores are averaged. Internal training retains
-the original procedure and is not independent validation. Do not present these
+the default procedure and is not independent validation. Do not present these
 scores as validated prediction accuracy for unseen patients or unseen genes.
 
 # Select genes from resamples: `genes_from_classification_results()`
@@ -377,8 +373,8 @@ selected_expression <- selection$filtered_matrix
 dim(selected_expression)
 ```
 
-For threshold-based selection and the intersection option shown in the
-dissertation, use:
+To select resamples by a score threshold and retain genes present in all
+selected resamples, use:
 
 ```{r selection-options, eval=FALSE}
 threshold_selection <- genes_from_classification_results(classification$eval_table,
@@ -469,7 +465,7 @@ the larger signed correlation; consult both ICC matrices for that information.
 |:--|:--|
 | `icc_result` | List returned by ICC analysis. |
 | `cutoff` | `NULL` retains all differences; a value from 0 to 2 retains differences **at least** that value in the table. |
-| `unique_pairs` | `TRUE` returns each undirected pair once, without the diagonal; `FALSE` includes self-pairs and both directions, matching the legacy full table. |
+| `unique_pairs` | `TRUE` returns each undirected pair once, without the diagonal; `FALSE` includes self-pairs and both directions, including both directions and the diagonal. |
 | `plot` | Draw the heatmap. |
 | `heatmap_colors`, `heatmap_breaks` | Color-palette function and interval boundaries. |
 | `show_rownames`, `show_colnames` | Display gene labels. |
@@ -570,8 +566,8 @@ standard_states <- mine_gene_associations(states, 5:8, maxlen = 2,
   interactive = FALSE)
 ```
 
-These cut points illustrate customization. They are not a validated biological
-state definition or automatic reproduction of the dissertation.
+These cut points illustrate customization. Choose shared state definitions
+that are appropriate for your data and biological question.
 
 # Compare rules: `compare_gene_rules()`
 
@@ -671,13 +667,8 @@ ggplot2::ggsave(file.path(directory, "acc.png"),
 
 # Full reference and troubleshooting
 
-This tutorial was developed from the descriptions and parameter documentation
-in the package's `R/` and `man/` files, checked against the current implementation
-and the dissertation's methodology, examples and Appendix A (printed pages
-93–99). Descriptions follow the code: for example, `method = "scale"` does not
-center values and therefore does not automatically produce z-scores, despite
-the wording used in the older dissertation. The original scaling convention
-is preserved and documented precisely.
+Parameter descriptions follow the package implementation. For example,
+`method = "scale"` scales values without centering; it does not produce z-scores.
 
 Each function also has conventional R documentation with **Usage, Arguments,
 Value and Examples**. In RStudio, open it with `?function_name`:
@@ -718,8 +709,6 @@ for (name in functions) {
 }
 ```
 
-For reproducibility, save input data, metadata, parameters, seed, package
-version and `sessionInfo()`. The tutorial demonstrates software behavior;
-scientific analyses require justified choices and biological evaluation.
-See the original method preprint, doi:10.1101/2025.05.06.652387, and the author's
-dissertation for its research context.
+Save input data, metadata, parameters, seed, package version and `sessionInfo()`
+with your results. For the method's research context, see the preprint,
+doi:10.1101/2025.05.06.652387.

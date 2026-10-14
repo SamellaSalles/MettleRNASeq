@@ -21,9 +21,8 @@ Original B4.csv SHA256:
 Reshaped expression CSV SHA256:
 9a5a42be35ab188fc6f1aad961f8a5237f46a575a5380b76c9987f3de78cd3ff
 
-Use this subset to learn the software. Do not normalize it again, estimate
-genome-wide differential expression from it, or treat the quick example as
-a reproduction of the complete published biological analysis.
-For a complete reanalysis start from the original count matrices and metadata.
-Attribution to the original study and to the MettleRNASeq processing should
-accompany reuse of this example. Confirm redistribution terms before a release.
+Use this subset to learn the software. It is normalized and preselected;
+do not normalize it again or use it for genome-wide differential expression.
+For your own analysis, load your expression matrix and sample metadata and
+choose parameters for your experimental design. Attribute the original study
+and MettleRNASeq processing when reusing these example data.

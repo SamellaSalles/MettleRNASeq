@@ -26,7 +26,7 @@ normalized_synthetic <- normalize_count_matrix(counts, method = "TMM",
 dim(normalized_synthetic)
 attr(normalized_synthetic, "removed_genes")
 attr(normalized_synthetic, "removed_samples")
-# Continue with the already normalized MSc matrix; do not normalize it again.
+# Continue with the already normalized example matrix; do not normalize it again.
 normalized <- expression
 
 # Stage: distance

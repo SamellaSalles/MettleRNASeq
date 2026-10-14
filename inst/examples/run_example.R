@@ -19,7 +19,7 @@ run_mettle_example <- function(dataset = c("mestrado", "synthetic"), output_dir 
     if (!nzchar(expression_file) || !nzchar(metadata_file)) stop("Example data missing; reinstall the documented version.")
     expression <- read.csv(expression_file, row.names = 1, check.names = FALSE)
     metadata <- read.csv(metadata_file, stringsAsFactors = FALSE)
-    # These are normalized, preselected MSc values. Do not normalize them again.
+    # These example values are normalized and preselected. Do not normalize them again.
     normalized <- expression
   } else {
     metadata <- data.frame(Sample = c(paste0("A", 1:4), paste0("B", 1:4)),
