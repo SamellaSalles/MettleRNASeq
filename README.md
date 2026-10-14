@@ -2,10 +2,16 @@
 
 # MettleRNASeq
 
-An R package designed to explore **RNA-seq data with small sample sizes,
-high variability and complex biological conditions**. It combines PCA,
-classification, correlations and association rules to select genes and
-explore relationships across experimental conditions.
+MettleRNASeq is an R package for exploring **RNA-seq data with small sample
+sizes, high variability and complex biological conditions**. It helps prioritize
+candidate genes and gene sets for follow-up analysis and explore how gene
+relationships differ across experimental conditions.
+
+PCA selects genes by their contribution to expression variation; classification
+evaluates resampled gene sets for distinguishing conditions. Correlations and
+association rules then explore relationships among the selected genes. The
+workflow returns gene lists, scores, tables and plots to support hypothesis
+generation.
 
 ## Install
 
@@ -32,7 +38,8 @@ in `example_results`.
 
 Start with an expression matrix: **samples in rows, genes in columns**, unique
 names and matching sample-condition metadata. Normalize raw counts once;
-skip normalization for already normalized data.
+skip normalization for already normalized data. Classification requires the
+same number of replicates in each condition.
 
 Follow the [manual](docs/MettleRNASeq_step_by_step_manual.html) and
 [step-by-step script](inst/examples/step_by_step.R) to load your data, run each
@@ -52,6 +59,6 @@ small example and `sessionInfo()`. Use `citation("MettleRNASeq")` to cite the pa
 **Author and maintainer:** Samella Salles.
 
 Otávio Brustolini, Luciane Ciapina and Kary Ocaña supervised the master's research
-underlying the package. 
+underlying the package.
 
 Historical support from LNCC and CAPES, and discussions with Rebecca Salles, are acknowledged.
