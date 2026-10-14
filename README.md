@@ -59,16 +59,13 @@ repeatability within a recorded computational environment.
 
 ## Manuals and scientific interpretation
 
-- [Complete English manual with figures and results](docs/MettleRNASeq_manual_completo_EN.html): download the HTML file using GitHub's **Download raw file** button and open it in a browser.
+- [Complete English manual with figures and results](docs/MettleRNASeq_step_by_step_manual.html): download the HTML file using GitHub's **Download raw file** button and open it in a browser.
 - [English step-by-step manual source](vignettes/MettleRNASeq-step-by-step.Rmd): every function, all parameter choices, actual results and links between stages.
 - [English line-by-line script](inst/examples/step_by_step.R).
-- [Portuguese step-by-step manual](vignettes/MettleRNASeq-passo-a-passo.Rmd): all 12 functions, parameter choices, actual outputs, and how to pass results between stages.
-- [Line-by-line tutorial script](inst/examples/passo_a_passo.R), matching the manual's main code blocks.
-- [User guide source](vignettes/MettleRNASeq.Rmd), including inputs, all functions, output interpretation and troubleshooting.
 - [Runnable workflow](inst/examples/run_example.R).
 - Installed function help: `help("classification_approach_advanced", package = "MettleRNASeq")`.
 - Installed tutorial: `browseVignettes("MettleRNASeq")` after building vignettes.
-- [Maintenance changes](NEWS.md) and [comparison with the archived MSc/article results](docs/RESULTS_COMPARISON_EN.txt).
+- [Maintenance changes](NEWS.md).
 
 Most functions expect samples in rows and genes in columns. Classification
 uses a gene-condition representation with replicate columns, retains gene
@@ -90,8 +87,14 @@ rerun. The quick examples use smaller settings than the research analysis.
 The ICC-difference table now lists each undirected off-diagonal pair once.
 Use `icc_difference(..., unique_pairs = FALSE)` for the historical full-table
 representation. Pairwise coefficients in the checked supplements are unchanged.
-See the [comparison report](docs/RESULTS_COMPARISON_EN.txt) for exact scope and
-limitations and the [validation guide](docs/validation.md) for local checks.
+The full model search selecting the historical resamples, differential-expression
+and enrichment analyses were not rerun. These checks do not constitute independent
+biological validation.
+
+The local regression suite passed 19 cases and 82 assertions on Windows with
+R 4.4.1. A package check completed with `Status: OK`; after adding the complete
+English tutorial, building, installing and executing that tutorial also succeeded.
+Current remote checks are available in the repository's Actions tab.
 
 ![Original workflow](man/figures/Fluxogram_MettleRNASeq.png)
 
@@ -106,7 +109,8 @@ Code is distributed under **GPL-2.0-or-later**. See [COPYING](COPYING).
 The software citation metadata in `CITATION.cff` refers to the existing 1.0.0
 release; update it when a new release is actually made.
 
+## Acknowledgements
+
 Otávio Brustolini, Luciane Ciapina and Kary Ocaña supervised the master's
 research underlying the package. Historical support from LNCC and CAPES,
-and discussions with Rebecca Salles, are acknowledged in the original project;
-funding details for a software publication should be confirmed by the author.
+and discussions with Rebecca Salles, are acknowledged in the original project.
