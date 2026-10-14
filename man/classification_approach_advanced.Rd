@@ -7,7 +7,7 @@
 classification_approach_advanced(
   input_data,
   algorithms,
-  hyper_params,
+  hyper_params = NULL,
   num_resamples,
   num_genes,
   train_percentage = 0.75,
@@ -17,7 +17,9 @@ classification_approach_advanced(
   parallel = FALSE,
   seed = 123,
   include_gene = TRUE,
-  error_handling = c("stop", "continue")
+  error_handling = c("stop", "continue"),
+  tune_length = 10L,
+  store_models = TRUE
 )
 }
 \arguments{
@@ -26,8 +28,8 @@ replicates (e.g., \code{Rep_1}, \code{Rep_2}, ...) as columns, and a \code{Condi
 
 \item{algorithms}{A character vector of classification algorithms (e.g., \code{"rf"}, \code{"ranger"}, \code{"svmLinear2"}).}
 
-\item{hyper_params}{A named list of tuning grids (data.frames) for each algorithm. Each list element must contain
-the hyperparameters specific to the corresponding algorithm. See details below.}
+\item{hyper_params}{A named list of tuning grids (data.frames), or NULL to let caret
+generate a grid for each algorithm using tune_length. Explicit grids retain the existing behavior.}
 
 \item{num_resamples}{Number of bootstrap resamples (i.e., how many different sets of genes to sample).}
 
@@ -48,6 +50,10 @@ the hyperparameters specific to the corresponding algorithm. See details below.}
 \item{include_gene}{Include gene identity as a predictor (TRUE preserves the original approach).}
 
 \item{error_handling}{Stop at a failed fit (default), or continue with explicit failure records and NA summaries.}
+
+\item{tune_length}{Number of tuning values requested from caret when hyper_params is NULL. The resulting grid is algorithm-specific.}
+
+\item{store_models}{Keep fitted model objects (default TRUE). Set FALSE for larger analyses; scores, gene identifiers, tuning parameters and diagnostics are still returned.}
 }
 \value{
 A list with the following components:
@@ -55,7 +61,9 @@ A list with the following components:
 \item{eval_table}{A data frame with algorithm name, resample number, data split, train/test replicates, and metrics.}
 \item{partition_table}{A data frame listing all unique train/test replicate combinations used.}
 \item{genes_table}{A data frame where each column is a resample and each row is the position (index) of a gene selected from the first condition.}
-\item{models}{A nested list of trained models per algorithm, resample, and data split.}
+\item{models}{A nested list of trained models per algorithm, resample, and data split; empty per algorithm when store_models is FALSE.}
+\item{tuning_table}{Selected tuning parameters for each successful fit.}
+\item{configuration}{Recorded resampling, tuning and model-storage settings.}
 }
 }
 \description{
@@ -67,7 +75,10 @@ partitioning details, and trained models.
 Genes are sampled only from the first condition, then matched across all conditions. For each resample,
 the function uses all possible combinations of train/test replicate splits based on the given training percentage.
 
-The \code{hyper_params} argument must be a named list where each name corresponds to an algorithm (e.g., \code{"rf"} or \code{"ranger"}), and each value is a data frame with hyperparameter settings. Example:
+Set \code{hyper_params = NULL} for caret-generated tuning grids. Use
+\code{tune_length} to control the requested grid size. Alternatively, supply a
+named list where each name corresponds to an algorithm and each value is a
+data frame with its tuning parameters. Example:
 
 \preformatted{
 hyper_params <- list(

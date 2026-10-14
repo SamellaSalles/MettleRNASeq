@@ -33,12 +33,16 @@ library(MettleRNASeq)
 
 ```r
 source(system.file("examples", "run_example.R", package = "MettleRNASeq"))
-result <- run_mettle_example("bone", output_dir = "example_results")
+result <- run_mettle_example("bone", output_dir = "example_results",
+  search_mode = "expanded")
 ```
 
 The example includes a normalized [expression matrix](inst/extdata/bone_expression.csv)
 and [sample metadata](inst/extdata/bone_metadata.csv). It saves tables, plots
-and results in `example_results`.
+and results in `example_results`. It keeps all 235 preselected genes, evaluates
+100 gene sets and retains all sets tied at the best score. This exploratory
+example also reports search coverage. Use `search_mode = "quick"` for a short
+demonstration, or increase `num_resamples` for a larger search.
 
 ## Use your data
 
@@ -52,6 +56,10 @@ Follow the [manual](docs/MettleRNASeq_step_by_step_manual.html) and
 function and choose normalization, gene-selection, classification and rule-mining
 parameters. Download the manual with **Download raw file** and open it in a browser.
 For function help, use `?normalize_count_matrix` or the relevant function name.
+
+For larger searches, `store_models = FALSE` reduces memory use and
+`summarize_gene_resampling()` reports how thoroughly candidate genes were
+explored. See the [resampling example](inst/examples/resampling_diagnostics.R).
 
 ## Support and citation
 
