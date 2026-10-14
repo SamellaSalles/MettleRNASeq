@@ -53,6 +53,10 @@ function and choose normalization, gene-selection, classification and rule-minin
 parameters. Download the manual with **Download raw file** and open it in a browser.
 For function help, use `?normalize_count_matrix` or the relevant function name.
 
+For larger searches, `store_models = FALSE` reduces memory use and
+`summarize_gene_resampling()` reports how thoroughly candidate genes were
+explored. See the [resampling example](inst/examples/resampling_diagnostics.R).
+
 ## Support and citation
 
 [Report an issue](https://github.com/SamellaSalles/MettleRNASeq/issues) with a

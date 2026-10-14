@@ -1,8 +1,4 @@
-# MettleRNASeq: run the blocks in order, or select lines in RStudio.
-
-# Run each stage using the step-by-step manual.
-
-# Replace the temporary output directory with a permanent project folder.
+library(MettleRNASeq)
 
 # Stage: load
 library(MettleRNASeq)
@@ -71,6 +67,11 @@ classification$partition_table
 head(classification$eval_table)
 classification$status_table
 head(classification$gene_ids_table)
+
+# Stage: resampling-diagnostics
+diagnostics <- summarize_gene_resampling(classification, cutoff = .85)
+diagnostics$coverage_table
+head(diagnostics$gene_table)
 
 # Stage: select
 scores <- unique(classification$eval_table[,

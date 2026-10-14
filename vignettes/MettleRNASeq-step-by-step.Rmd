@@ -272,7 +272,9 @@ genes, partitions, sample identities and fitting failures.
 |:--|:--|
 | `input_data` | Table returned by `prepare_input_matrix()`. |
 | `algorithms` | caret methods such as `"rf"`, `"ranger"` or `"svmLinear2"`; install their model engines. |
-| `hyper_params` | Named list of algorithm-specific tuning-grid data frames. RF uses `mtry`; other methods have their own grid columns. |
+| `hyper_params` | `NULL` requests caret-generated grids; otherwise supply named algorithm-specific data frames. RF uses `mtry`. |
+| `tune_length` | Requested tuning-grid size when `hyper_params = NULL`; the actual grid depends on the algorithm and available predictors. |
+| `store_models` | `FALSE` saves memory by discarding fitted models while retaining scores, genes and selected tuning parameters. |
 | `num_resamples` | Number of gene sets to draw; increases the number of fitted models. |
 | `num_genes` | Genes drawn per set, from the first condition and matched by identity in the others. |
 | `train_percentage` | Fraction of replicates for training; `.75` with four replicates gives three training and one test replicate. |
@@ -302,7 +304,8 @@ resample and partition; `test_eval_table` separates held-out replicates;
 `partition_table` describes splits; `genes_table` retains legacy positions;
 `gene_ids_table` stores IDs including repeated draws; `sample_map` identifies
 samples; `status_table` records successes/failures; `models` stores trained
-models; `summary_stat` identifies the chosen summary.
+models; `summary_stat` identifies the chosen summary. `tuning_table` records
+selected tuning parameters and `configuration` records the analysis settings.
 
 Four replicates and `.75` training give four partitions. Three resamples and
 one algorithm produce twelve partition fits, each with its tuning grid.
@@ -331,6 +334,48 @@ are repeated into the training-column layout. If several replicates are held
 out, each is evaluated and their scores are averaged. Internal training retains
 the default procedure and is not independent validation. Do not present these
 scores as validated prediction accuracy for unseen patients or unseen genes.
+
+# Check search coverage: `summarize_gene_resampling()`
+
+Three resamples make a quick demonstration. They are not a thorough search:
+some candidate genes may never be sampled. Inspect this before interpreting
+selection or increasing the search size.
+
+```{r resampling-diagnostics}
+diagnostics <- summarize_gene_resampling(classification, cutoff = .85)
+diagnostics$coverage_table
+head(diagnostics$gene_table)
+```
+
+| Parameter | How to choose |
+|:--|:--|
+| `classification_result` | Complete classification object, preserving its gene-universe metadata. |
+| `cutoff` | Minimum resample score; `NULL` reports coverage without defining qualifying sets. |
+| `metric_column` | A resample summary such as `"summary_test_accuracy"`, not a varying partition score. |
+| `algorithm` | One or more engines to inspect; `NULL` reports each separately. |
+| `gene_universe` | Complete candidate-gene IDs if metadata was lost during export. Include unsampled genes. |
+
+`sampling_coverage` is the fraction of candidate genes drawn at least once.
+`min_resamples_per_gene` reveals genes receiving little or no exploration.
+Repeated draws within one resample count once. `qualification_fraction` is
+the fraction of successfully evaluated sets containing a gene that meet the
+cutoff; it describes group recurrence and does not establish gene importance
+or statistical significance. No qualifying sets is a valid result.
+
+For a larger search with automatic tuning and reduced memory use:
+
+```{r larger-search, eval=FALSE}
+larger <- classification_approach_advanced(input, algorithms = "rf",
+  hyper_params = NULL, tune_length = 10, num_resamples = 100,
+  num_genes = 10, seed = 123, store_models = FALSE)
+coverage <- summarize_gene_resampling(larger, cutoff = .85)
+coverage$coverage_table
+```
+
+Choose the cutoff and gene-set sizes for your scientific question. Increasing
+resampling explores more combinations; it does not guarantee signal recovery.
+Changing the tuning grid can change scores and selected sets. To retain an
+existing analysis, keep its explicit grid, seed and selection settings.
 
 # Select genes from resamples: `genes_from_classification_results()`
 
@@ -702,7 +747,7 @@ stage above for guidance; you need not repeat arguments whose defaults you want.
 ```{r signatures, echo=FALSE, results='asis'}
 functions <- c("normalize_count_matrix", "compute_distance_matrix", "pca_analysis",
   "feature_selection_pca", "prepare_input_matrix", "classification_approach_advanced",
-  "genes_from_classification_results", "acc_analysis", "icc_analysis",
+  "summarize_gene_resampling", "genes_from_classification_results", "acc_analysis", "icc_analysis",
   "icc_difference", "mine_gene_associations", "compare_gene_rules")
 for (name in functions) {
   cat("\n### ", name, "\n\n```r\n", sep = "")

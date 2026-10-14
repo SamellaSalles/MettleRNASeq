@@ -7,8 +7,8 @@
 #' @param input_data A data frame output from \code{prepare_input_matrix()}, with genes as rows,
 #' replicates (e.g., \code{Rep_1}, \code{Rep_2}, ...) as columns, and a \code{Condition} column.
 #' @param algorithms A character vector of classification algorithms (e.g., \code{"rf"}, \code{"ranger"}, \code{"svmLinear2"}).
-#' @param hyper_params A named list of tuning grids (data.frames) for each algorithm. Each list element must contain
-#' the hyperparameters specific to the corresponding algorithm. See details below.
+#' @param hyper_params A named list of tuning grids (data.frames), or NULL to let caret
+#' generate a grid for each algorithm using tune_length. Explicit grids retain the existing behavior.
 #' @param num_resamples Number of bootstrap resamples (i.e., how many different sets of genes to sample).
 #' @param num_genes Number of genes to randomly sample from the first condition in each resample.
 #' @param train_percentage Percentage of replicates to use for training (e.g., 0.75).
@@ -20,11 +20,16 @@
 #'
 #' @param include_gene Include gene identity as a predictor (TRUE preserves the original approach).
 #' @param error_handling Stop at a failed fit (default), or continue with explicit failure records and NA summaries.
+#' @param tune_length Number of tuning values requested from caret when hyper_params is NULL. The resulting grid is algorithm-specific.
+#' @param store_models Keep fitted model objects (default TRUE). Set FALSE for larger analyses; scores, gene identifiers, tuning parameters and diagnostics are still returned.
 #' @details
 #' Genes are sampled only from the first condition, then matched across all conditions. For each resample, 
 #' the function uses all possible combinations of train/test replicate splits based on the given training percentage.
 #'
-#' The \code{hyper_params} argument must be a named list where each name corresponds to an algorithm (e.g., \code{"rf"} or \code{"ranger"}), and each value is a data frame with hyperparameter settings. Example:
+#' Set \code{hyper_params = NULL} for caret-generated tuning grids. Use
+#' \code{tune_length} to control the requested grid size. Alternatively, supply a
+#' named list where each name corresponds to an algorithm and each value is a
+#' data frame with its tuning parameters. Example:
 #'
 #' \preformatted{
 #' hyper_params <- list(
@@ -44,7 +49,9 @@
 #'   \item{eval_table}{A data frame with algorithm name, resample number, data split, train/test replicates, and metrics.}
 #'   \item{partition_table}{A data frame listing all unique train/test replicate combinations used.}
 #'   \item{genes_table}{A data frame where each column is a resample and each row is the position (index) of a gene selected from the first condition.}
-#'   \item{models}{A nested list of trained models per algorithm, resample, and data split.}
+#'   \item{models}{A nested list of trained models per algorithm, resample, and data split; empty per algorithm when store_models is FALSE.}
+#'   \item{tuning_table}{Selected tuning parameters for each successful fit.}
+#'   \item{configuration}{Recorded resampling, tuning and model-storage settings.}
 #' }
 #'
 #' @examples
@@ -70,17 +77,19 @@
 #' }
 #'
 #' @export
-classification_approach_advanced <- function(input_data, algorithms, hyper_params, num_resamples, num_genes,
+classification_approach_advanced <- function(input_data, algorithms, hyper_params = NULL, num_resamples, num_genes,
                                              train_percentage = 0.75, metrics = "Accuracy", summary_stat = "median",
                                              replace_genes = TRUE, parallel = FALSE, seed = 123,
-                                             include_gene = TRUE, error_handling = c("stop", "continue")) {
+                                             include_gene = TRUE, error_handling = c("stop", "continue"),
+                                             tune_length = 10L, store_models = TRUE) {
   error_handling <- match.arg(error_handling)
   summary_stat <- match.arg(summary_stat, c("median", "mean"))
   num_resamples <- .mettle_integer(num_resamples, "num_resamples")
   num_genes <- .mettle_integer(num_genes, "num_genes")
   seed <- .mettle_integer(seed, "seed", 0L)
+  tune_length <- .mettle_integer(tune_length, "tune_length")
   if (!identical(metrics, "Accuracy")) stop("Only metrics = 'Accuracy' is supported.")
-  for (flag in list(replace_genes, parallel, include_gene)) {
+  for (flag in list(replace_genes, parallel, include_gene, store_models)) {
     if (!is.logical(flag) || length(flag) != 1L || is.na(flag)) stop("Logical flags must be TRUE or FALSE.")
   }
   if (!is.data.frame(input_data) || !all(c("Gene", "Condition") %in% names(input_data))) {
@@ -115,9 +124,11 @@ classification_approach_advanced <- function(input_data, algorithms, hyper_param
   if (n_train < 1L || n_train >= length(replicate_cols)) stop("The requested split must leave both training and test replicates.")
   if (!is.character(algorithms) || !length(algorithms) || anyNA(algorithms) ||
       any(!nzchar(algorithms)) || anyDuplicated(algorithms)) stop("algorithms must contain unique method names.")
-  if (!is.list(hyper_params) || !all(algorithms %in% names(hyper_params))) stop("Supply a tuning grid for every algorithm.")
-  for (m in algorithms) {
-    if (!is.data.frame(hyper_params[[m]]) || !nrow(hyper_params[[m]])) stop("Each tuning grid must be a non-empty data frame.")
+  if (!is.null(hyper_params)) {
+    if (!is.list(hyper_params) || !all(algorithms %in% names(hyper_params))) stop("Supply a tuning grid for every algorithm, or hyper_params = NULL for automatic tuning.")
+    for (m in algorithms) {
+      if (!is.data.frame(hyper_params[[m]]) || !nrow(hyper_params[[m]])) stop("Each tuning grid must be a non-empty data frame.")
+    }
   }
   if (!requireNamespace("caret", quietly = TRUE)) stop("Install caret before classification.")
   splits <- utils::combn(seq_along(replicate_cols), n_train, simplify = FALSE)
@@ -133,7 +144,7 @@ classification_approach_advanced <- function(input_data, algorithms, hyper_param
   names(gene_ids_table) <- names(genes_table)
   attr(genes_table, "gene_ids") <- gene_ids_table
   attr(genes_table, "gene_order") <- gene_ids
-  eval_rows <- list(); test_rows <- list(); status_rows <- list(); models <- list()
+  eval_rows <- list(); test_rows <- list(); status_rows <- list(); tuning_rows <- list(); models <- list()
   for (m in algorithms) {
     models[[m]] <- list()
     for (i in seq_len(num_resamples)) {
@@ -154,8 +165,13 @@ classification_approach_advanced <- function(input_data, algorithms, hyper_param
             index = list(seq_len(nrow(training))), indexOut = list(seq_len(nrow(training))),
             allowParallel = parallel)
           set.seed(seed)
-          model <- caret::train(Condition ~ ., data = training, method = m, metric = "Accuracy",
-            preProcess = "center", trControl = control, tuneGrid = hyper_params[[m]])
+          if (is.null(hyper_params)) {
+            model <- caret::train(Condition ~ ., data = training, method = m, metric = "Accuracy",
+              preProcess = "center", trControl = control, tuneLength = tune_length)
+          } else {
+            model <- caret::train(Condition ~ ., data = training, method = m, metric = "Accuracy",
+              preProcess = "center", trControl = control, tuneGrid = hyper_params[[m]])
+          }
           # Match every tuning parameter, not only mtry.
           best <- rep(TRUE, nrow(model$results))
           for (param in names(model$bestTune)) {
@@ -189,7 +205,11 @@ classification_approach_advanced <- function(input_data, algorithms, hyper_param
           test_accuracy = if (ok) mean(trained$per_test) else NA_real_,
           status = if (ok) "ok" else "error", error = error)
         if (ok) {
-          models[[m]][[key]] <- trained$model
+          if (store_models) models[[m]][[key]] <- trained$model
+          tuning <- trained$model$bestTune
+          names(tuning) <- paste0("parameter_", names(tuning))
+          tuning_rows[[length(tuning_rows) + 1L]] <- cbind(data.frame(algorithm = m,
+            resample = i, data_split = s, stringsAsFactors = FALSE), tuning)
           test_rows[[length(test_rows) + 1L]] <- data.frame(algorithm = m, resample = i, data_split = s,
             test_replicate = test_cols, test_accuracy = unname(trained$per_test))
         }
@@ -211,5 +231,12 @@ classification_approach_advanced <- function(input_data, algorithms, hyper_param
   list(eval_table = eval_table, partition_table = partition_table, genes_table = genes_table,
     models = models, gene_ids_table = gene_ids_table, status_table = status_table,
     test_eval_table = if (length(test_rows)) do.call(rbind, test_rows) else data.frame(),
-    sample_map = attr(input_data, "sample_map"), summary_stat = summary_stat)
+    sample_map = attr(input_data, "sample_map"), summary_stat = summary_stat,
+    tuning_table = if (length(tuning_rows)) dplyr::bind_rows(tuning_rows) else data.frame(),
+    configuration = list(algorithms = algorithms, num_resamples = num_resamples,
+      num_genes = num_genes, train_percentage = train_percentage, summary_stat = summary_stat,
+      replace_genes = replace_genes, seed = seed, include_gene = include_gene,
+      tuning_strategy = if (is.null(hyper_params)) "automatic" else "explicit_grid",
+      tune_length = if (is.null(hyper_params)) tune_length else NA_integer_,
+      store_models = store_models))
 }
