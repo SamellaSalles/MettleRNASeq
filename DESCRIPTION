@@ -1,10 +1,10 @@
 Package: MettleRNASeq
 Title: Machine-Learning-Assisted Analysis of Complex RNA-Seq Datasets
-Version: 1.0.0.9000
+Version: 1.1.0
 Authors@R: person(
         given = "Samella",
         family = "Salles",
-        email = "ssalles@posgrad.lncc.br",
+        email = "samellapsalles@gmail.com",
         role = c("aut", "cre", "cph"),
         comment = c(ORCID = "0000-0001-5521-4717")
     )

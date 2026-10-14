@@ -1,4 +1,4 @@
-# MettleRNASeq 1.0.0.9000
+# MettleRNASeq 1.1.0
 
 * Retain default gene resampling, replicate-column partitions,
   internal training procedure, and gene identity predictor by default.

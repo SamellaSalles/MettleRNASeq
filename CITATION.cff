@@ -14,12 +14,18 @@ abstract: >
   expression analysis is limited by small sample size, high variability,
   or complex biological mechanisms.
 
-version: "1.0.0"
+version: "1.1.0"
 
-date-released: 2026-07-09
+date-released: 2026-10-14
 
 license: GPL-2.0-or-later
 
 repository-code: "https://github.com/SamellaSalles/MettleRNASeq"
 
 url: "https://github.com/SamellaSalles/MettleRNASeq"
+keywords:
+  - RNA-seq
+  - gene selection
+  - small sample sizes
+  - exploratory analysis
+  - association rules
