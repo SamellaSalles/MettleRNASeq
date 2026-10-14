@@ -15,6 +15,9 @@ association rules then explore relationships among the selected genes. The
 workflow returns gene lists, scores, tables and plots to support hypothesis
 generation.
 
+The method and scientific applications are described in the
+[MettleRNASeq preprint](https://doi.org/10.1101/2025.05.06.652387).
+
 ## Install
 
 Requires R >= 4.2.0.
@@ -54,7 +57,6 @@ For function help, use `?normalize_count_matrix` or the relevant function name.
 
 [Report an issue](https://github.com/SamellaSalles/MettleRNASeq/issues) with a
 small example and `sessionInfo()`. Use `citation("MettleRNASeq")` to cite the package.
-[Method and research examples](https://doi.org/10.1101/2025.05.06.652387) ·
 [Example data and processing](inst/extdata/PROVENANCE.md) · [GPL-2.0-or-later](COPYING).
 
 ## Author and acknowledgements
