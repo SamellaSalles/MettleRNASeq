@@ -6,7 +6,7 @@ output:
     toc: true
     number_sections: true
 vignette: >
-  %\VignetteIndexEntry{MettleRNASeq: step-by-step manual in English}
+  %\VignetteIndexEntry{MettleRNASeq: step-by-step manual}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -18,11 +18,8 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 8,
 
 # How to use this manual
 
-Run the code blocks in order, in the same R session. Each stage creates an
-object used by subsequent stages. This tutorial calls **all 12 functions
-individually**, displays their outputs, and explains how to choose parameters.
-Alternative blocks are optional. The main code is also available in
-`inst/examples/step_by_step.R`, for line-by-line execution in RStudio.
+Run the blocks in order in one R session, or use `inst/examples/step_by_step.R`.
+Each stage creates the input for the next. Optional blocks show alternatives.
 
 The sequence follows the MSc workflow: normalization → sample distances → PCA
 → PCA gene selection → input preparation → classification with gene resampling
@@ -37,19 +34,16 @@ parameter settings or scientific findings in the dissertation.
 
 # Installation and data layout
 
-If necessary, install dependencies and the revised local package once:
+Install the package once:
 
 ```{r install, eval=FALSE}
 install.packages(c("BiocManager", "remotes", "randomForest"))
 BiocManager::install(c("edgeR", "DESeq2"), ask = FALSE, update = FALSE)
-remotes::install_local("path/to/MettleRNASeq", build_vignettes = TRUE)
+remotes::install_github("SamellaSalles/MettleRNASeq", build_vignettes = FALSE)
 ```
 
-The first installation command in the block installs CRAN dependencies; the
-second installs Bioconductor dependencies. Replace the local path with the
-revised package folder. Use GitHub installation after this version is released.
-The package declares R ≥ 4.2.0; these examples were tested with R 4.4.1 on
-Windows. Install dependency versions compatible with your R version.
+Requires R ≥ 4.2.0. To also install the tutorial, set `build_vignettes = TRUE`;
+this requires Pandoc, included with RStudio.
 
 Working matrices have **samples in rows and genes in columns**, with unique
 sample and gene names. Metadata identifies each sample's condition and must

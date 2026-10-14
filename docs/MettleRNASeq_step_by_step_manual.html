@@ -404,13 +404,7 @@ mine_gene_associations</a></li>
 <div id="how-to-use-this-manual" class="section level1" number="1">
 <h1><span class="header-section-number">1</span> How to use this
 manual</h1>
-<p>Run the code blocks in order, in the same R session. Each stage
-creates an object used by subsequent stages. This tutorial calls
-<strong>all 12 functions individually</strong>, displays their outputs,
-and explains how to choose parameters. Alternative blocks are optional.
-The main code is also available in
-<code>inst/examples/step_by_step.R</code>, for line-by-line execution in
-RStudio.</p>
+<p>Run the blocks in order in one R session, or use <code>inst/examples/step_by_step.R</code>. Each stage creates the input for the next. Optional blocks show alternatives.</p>
 <p>The sequence follows the MSc workflow: normalization → sample
 distances → PCA → PCA gene selection → input preparation →
 classification with gene resampling → classification-based selection →
@@ -426,17 +420,11 @@ scientific findings in the dissertation.</p>
 <div id="installation-and-data-layout" class="section level1" number="2">
 <h1><span class="header-section-number">2</span> Installation and data
 layout</h1>
-<p>If necessary, install dependencies and the revised local package
-once:</p>
+<p>Install the package once:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">install.packages</span>(<span class="fu">c</span>(<span class="st">&quot;BiocManager&quot;</span>, <span class="st">&quot;remotes&quot;</span>, <span class="st">&quot;randomForest&quot;</span>))</span>
 <span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>BiocManager<span class="sc">::</span><span class="fu">install</span>(<span class="fu">c</span>(<span class="st">&quot;edgeR&quot;</span>, <span class="st">&quot;DESeq2&quot;</span>), <span class="at">ask =</span> <span class="cn">FALSE</span>, <span class="at">update =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>remotes<span class="sc">::</span><span class="fu">install_local</span>(<span class="st">&quot;path/to/MettleRNASeq&quot;</span>, <span class="at">build_vignettes =</span> <span class="cn">TRUE</span>)</span></code></pre></div>
-<p>The first installation command in the block installs CRAN
-dependencies; the second installs Bioconductor dependencies. Replace the
-local path with the revised package folder. Use GitHub installation
-after this version is released. The package declares R ≥ 4.2.0; these
-examples were tested with R 4.4.1 on Windows. Install dependency
-versions compatible with your R version.</p>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>remotes<span class="sc">::</span><span class="fu">install_github</span>(<span class="st">&quot;SamellaSalles/MettleRNASeq&quot;</span>, <span class="at">build_vignettes =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
+<p>Requires R ≥ 4.2.0. To also install the tutorial, set <code>build_vignettes = TRUE</code>; this requires Pandoc, included with RStudio.</p>
 <p>Working matrices have <strong>samples in rows and genes in
 columns</strong>, with unique sample and gene names. Metadata identifies
 each sample’s condition and must follow the matrix row order. Read

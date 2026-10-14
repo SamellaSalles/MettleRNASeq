@@ -1,6 +1,6 @@
 # MettleRNASeq: run the blocks in order, or select lines in RStudio.
 
-# Main code extracted from the English step-by-step manual.
+# Run each stage using the step-by-step manual.
 
 # Replace the temporary output directory with a permanent project folder.
 
